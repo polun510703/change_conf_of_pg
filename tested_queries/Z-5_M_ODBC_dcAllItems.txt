@@ -1,0 +1,241 @@
+SELECT dct_items.item_id AS "ItemID",
+    dct_items.item_name AS "ItemName",
+    dct_items.item_alias AS "ItemAlias",
+    class.lkp_value AS "Class",
+    subclass.lkp_value AS "Subclass",
+    dct_items.location_id AS "RoomID",
+    dct_items.parent_item_id AS "CabinetItemID",
+    dct_items.u_position AS "UPosition",
+    f.slot_label AS "SlotLabel",
+    dct_items.slot_position AS "SlotPosition",
+    dct_items.shelf_position AS "ShelfPosition",
+        CASE
+            WHEN (dct_models.mounting::text = ANY (ARRAY['Rackable'::character varying::text, 'Non-Rackable'::character varying::text, 'Free-Standing'::character varying::text])) AND (dct_items.class_lks_id <> ALL (ARRAY[6::bigint, 11::bigint, 12::bigint, 13::bigint])) THEN rails.lkp_value
+            ELSE NULL::character varying
+        END AS "RailsUsed",
+        CASE
+            WHEN (dct_models.mounting::text = ANY (ARRAY['Rackable'::character varying::text, 'Non-Rackable'::character varying::text, 'Free-Standing'::character varying::text])) AND (dct_items.class_lks_id <> ALL (ARRAY[6::bigint, 11::bigint, 12::bigint, 13::bigint])) THEN face.lkp_value
+            ELSE NULL::character varying
+        END AS "Orientation",
+        CASE
+            WHEN dct_models.mounting::text = 'ZeroU'::text THEN rails.lkp_value
+            ELSE NULL::character varying
+        END AS "CabinetSide",
+        CASE
+            WHEN dct_models.mounting::text = 'ZeroU'::text THEN face.lkp_value
+            ELSE NULL::character varying
+        END AS "DepthPosition",
+        CASE
+            WHEN dct_models.mounting::text = 'Free-Standing'::text AND (dct_items.class_lks_id = ANY (ARRAY[6::bigint, 11::bigint, 12::bigint, 13::bigint])) OR dct_models.mounting::text = 'Suspended'::text AND dct_items.class_lks_id = 6 THEN face.lkp_value
+            ELSE NULL::character varying
+        END AS "FrontFaces",
+        CASE
+            WHEN dct_models.mounting::text = 'Blade'::text THEN face.lkp_value
+            ELSE NULL::character varying
+        END AS "ChassisFace",
+    dct_items_it.chassis_id AS "ChassisItemID",
+    dct_items.cad_handle AS "CADHandle",
+    tp.lku_value AS "ItemType",
+    fn.lku_value AS "ItemFunction",
+    dct_items.model_id AS "ModelID",
+    dct_mfrs.mfr_name AS "Make",
+    dct_models.model_name AS "Model",
+    dct_models.part_number AS "PartNumber",
+    dct_models.ru_height AS "RUHeight",
+    dct_models.dim_h AS "Height",
+    dct_models.dim_w AS "Width",
+    dct_models.dim_d AS "Depth",
+    dct_models.weight AS "Weight",
+    dct_models_me.battery_nominal_volts AS "Nominal Voltage",
+    dct_models_me.battery_cells_count AS "Number of Cells",
+    dct_models_me.ah1_rate_hours AS "Capacity 1 Rate (Hours)",
+    dct_models_me.amp_hour_1 AS "Capacity 1 (Amp-Hour) @ Hours",
+    dct_models_me.ah2_rate_hours AS "Capacity 2 Rate (Hours)",
+    dct_models_me.amp_hour_2 AS "Capacity 2 (Amp-Hour) @ Hours",
+    dct_models_me.rating_amps AS "Output Capacity Amps",
+    ratingvmodellks.lkp_value AS "Output Voltage Vdc",
+    dct_item_details.serial_number AS "SerialNumber",
+    dct_item_details.asset_number AS "AssetTag",
+    dct_items.raritan_tag AS "ElectronicAssetTag",
+    dct_item_details.purchase_date AS "PurchaseDate",
+    dct_item_details.purchase_price AS "PurchasePrice",
+    dct_item_details.sla_profile_lku_id AS "SLAID",
+    dct_item_details.contract_number AS "ContractNumber",
+    dct_item_details.contract_amount AS "ContractAmount",
+    dct_item_details.contract_begin_date AS "ContractBeginDate",
+    dct_item_details.install_date AS "InstallDate",
+    dct_item_details.contract_expire_date AS "ContractEndDate",
+    dct_item_details.planning_expiration_date AS "PlanningExpiration",
+    project.project_number AS "ProjectNumber",
+    dct_item_details.po_number AS "PO_Number",
+    dct_item_details.item_admin_user_id AS "SysAdminID",
+    team.name AS "SysAdminTeam",
+    dept.lku_value AS "Customer",
+    dct_items.location_reference AS "CabGridLocation",
+    parentsub.sub_location_name AS "CabAisleLabel",
+    dct_sub_locations.sub_location_name AS "CabRowLabel",
+    dct_items_cabinet.power_capacity AS "PowerCapacitykW",
+    dct_items.position_in_row AS "CabPositionInRow",
+    cabgroup.lku_value AS "CabinetGroup",
+    linevoltslks.lkp_value AS "LineVolts",
+    phasevoltslks.lkp_value AS "PhaseVolts",
+    ratingvlks.lkp_value AS "RatingVolts",
+    dct_items_me.rating_amps AS "RatingAmps",
+    dct_items_me.rating_kw AS "RatingkW",
+    dct_items_me.rating_kva AS "RatingkVA",
+    dct_items_me.ups_bank_item_id AS "UPSBankItemID",
+    get_redundancy(dct_items_me.redundancy) AS "SystemRedundancy",
+    ( SELECT min(dct_cooling_units_zones.cooling_zone_item_id) AS min
+           FROM dct_cooling_units_zones
+          WHERE dct_items.item_id = dct_cooling_units_zones.cooling_unit_item_id) AS "CRACGroupItemID",
+    dct_items_me.poles_qty AS "BreakerPanelPoles",
+    dct_items_me.pdupanel_item_id AS "OutletBreakerPanelItemID",
+    dct_items_me.location_xy AS "PerfTileXY",
+    dct_items_me.percent_open AS "PerfTilePercentOpen",
+    dct_items_me.batt_discharge_vpc AS "Discharge VPC",
+    dct_items_me.batt_target_run_time AS "Target Run Time",
+    linevoltslks.lkp_value AS "Input Volt",
+    phase.lkp_value AS "Input Phase",
+    phase.lkp_value AS "Phase",
+    dct_items_it.cpu_type AS "CPU",
+    dct_items_it.cpu_quantity AS "CPU_Quantity",
+    dct_items_it.ram_gb AS "RAM_GB",
+    dct_items_it.disk_gb AS "DISK_GB",
+    dct_items_it.total_users AS "Users",
+    dct_items_it.total_processes AS "Processes",
+    dct_items_it.services AS "Services",
+    domain.lku_value AS "Domain",
+    os.lku_value AS "OperatingSystem",
+    osi.lkp_value AS "OSILayer",
+    dct_items.proxy_index AS "ProxyIndex",
+    vmclust.lku_value AS "VMCluster",
+    dct_items_it.datastore_id AS "DataStoreID",
+    dct_datastores.volume_name AS "DataStoreVolume",
+    get_redundancy(dct_items.ps_redundancy) AS "PowerSupplyRedundancy",
+    status.lkp_value AS "Status",
+    dct_items.valid AS "ItemValid",
+    dct_items.reconciled AS "ItemReconciled",
+    dct_item_details.sys_created_by AS "CreatedBy",
+    dct_item_details.sys_creation_date AS "CreationDate",
+    COALESCE(( SELECT dct_audit_trail.change_by
+           FROM dct_audit_trail
+          WHERE dct_audit_trail.item_id = dct_items.item_id
+          ORDER BY dct_audit_trail.change_date DESC
+         LIMIT 1), dct_item_details.sys_created_by) AS "UpdatedBy",
+    dct_item_details.sys_update_date AS "UpdatedOn",
+    dct_item_details.description AS "Comment",
+    dct_items.location_reference AS "LocationRef",
+    dct_items.effective_power AS "EffectivePower",
+    dct_items.potential_power AS "PotentialPower",
+    ((budgetstatus.lkp_value::text || ' ('::text) || p.wattsderate) || '%)'::text AS "BudgetStatus",
+    dct_items_cabinet.power_capacity AS "PowerCapacity",
+    dct_items_cabinet.loading_capacity AS "WeightCapacity",
+    dct_items.planned_decommission_date AS "PlannedDecommissionDate",
+    dct_items.planning_date AS "PlanningDate",
+    dct_items.piq_id AS "PowerIQID",
+    dct_items_me.rating_tons AS "RatingTons",
+    dct_items_me.cfm AS "AirflowRate",
+    dct_items.elevation_aff AS "ElevationAFF",
+    dct_items_me.battery_recharge_factor AS "BatteryRechargeFactor",
+    origin.lkp_value AS "Origin",
+    dct_items.parent_item_id AS "ParentItemID",
+    parentitem.item_name AS "ParentItemName",
+    substatuslku.lku_value AS "Substatus",
+    dct_models_me.rating_kva AS nameplatekva,
+    dct_models_me.rating_kw AS nameplatekw,
+    dct_models_me.rating_amps AS nameplateamps,
+        CASE
+            WHEN class.lkp_value_code = 2300 AND subclass.lkp_value_code IS NULL OR (dct_items.subclass_lks_id = ANY (ARRAY[2611::bigint, 2701::bigint, 2711::bigint, 2301::bigint, 2302::bigint, 2303::bigint, 2621::bigint])) THEN
+            CASE
+                WHEN ( SELECT p_1.derate_amps
+                   FROM dct_ports_power p_1
+                  WHERE p_1.item_id = dct_items.item_id) THEN dct_items_me.rating_amps * 0.8
+                ELSE dct_items_me.rating_amps
+            END
+            ELSE NULL::numeric
+        END AS "ContinuousRatingA",
+        CASE
+            WHEN (dct_items.subclass_lks_id IN ( SELECT dct_lks_data.lks_id
+               FROM dct_lks_data
+              WHERE dct_lks_data.lkp_value_code = ANY (ARRAY[2621::bigint, 2622::bigint]))) THEN linevoltslks.lkp_value
+            ELSE NULL::character varying
+        END AS "OutputVoltsVac",
+        CASE
+            WHEN subclass.lkp_value_code = 5004 THEN linevoltslks.lkp_value
+            ELSE NULL::character varying
+        END AS "OutputVoltsVdc",
+    ratingvlks.lkp_value AS "RatingVac",
+        CASE
+            WHEN phase.lkp_value_code = 7022 THEN '3-Wire + Ground'::text
+            WHEN phase.lkp_value_code = 7023 THEN '4-Wire + Ground'::text
+            ELSE NULL::text
+        END AS "OutputWiring",
+    outputphase.lkp_value AS "OutputPhase",
+    dct_items_me.speed_rpm AS "SpeedRPM",
+    dct_items_me.built_in_tank_size AS "BuiltInTankSize",
+    dct_items_me.tank_size AS "TankSize",
+    dct_items_me.tank_size AS nameplategal,
+    panel.lkp_value AS "PanelLayout",
+    dct_items_me.pole_numbering_lks_id AS "PoleNumbering",
+    dct_items_me.first_pole_number AS "FirstPoleNumber",
+    dct_items_me.ic_rating_ka AS "IcRatingkA",
+    dct_items_me.device_number AS "DeviceNumber",
+    pstate.lkp_value AS "PreferredState",
+    astate.lkp_value AS "ActiveState",
+    wire.lku_value AS "WireGauge",
+    (((wirecolora.lkp_value::text || '/'::text) || wirecolorb.lkp_value::text) || '/'::text) || wirecolorc.lkp_value::text AS "WireColors",
+    dct_items_me.batt_string_name AS "BatteryStringName"
+   FROM dct_items
+     LEFT JOIN dct_items_cabinet ON dct_items.item_id = dct_items_cabinet.item_id
+     LEFT JOIN dct_items parentitem ON dct_items.parent_item_id = parentitem.item_id
+     LEFT JOIN dct_sub_locations ON dct_sub_locations.sub_location_id = dct_items.sub_location_id
+     LEFT JOIN dct_sub_locations parentsub ON dct_sub_locations.parent_sub_location_id = parentsub.sub_location_id
+     LEFT JOIN dct_items_it ON dct_items.item_id = dct_items_it.item_id
+     LEFT JOIN dct_items_me ON dct_items.item_id = dct_items_me.item_id
+     JOIN dct_item_details ON dct_items.item_detail_id = dct_item_details.item_detail_id
+     LEFT JOIN dct_lks_data class ON dct_items.class_lks_id = class.lks_id
+     LEFT JOIN dct_lks_data subclass ON dct_items.subclass_lks_id = subclass.lks_id
+     LEFT JOIN dct_lks_data face ON dct_items.facing_lks_id = face.lks_id
+     LEFT JOIN dct_lks_data rails ON dct_items.mounted_rails_pos_lks_id = rails.lks_id
+     LEFT JOIN dct_lks_data status ON dct_items.status_lks_id = status.lks_id
+     LEFT JOIN dct_lku_data os ON dct_items_it.os_lku_id = os.lku_id
+     LEFT JOIN dct_vm_cluster_hosts vm ON dct_items_it.vm_cluster_host_id = vm.vm_cluster_host_id
+     LEFT JOIN dct_lku_data vmclust ON vm.vm_cluster_lku_id = vmclust.lku_id
+     LEFT JOIN dct_lku_data tp ON dct_item_details.purpose_lku_id = tp.lku_id
+     LEFT JOIN dct_lku_data fn ON dct_item_details.function_lku_id = fn.lku_id
+     LEFT JOIN dct_lku_data dept ON dct_item_details.department_lku_id = dept.lku_id
+     LEFT JOIN user_groups team ON dct_item_details.item_admin_user_grp_id = team.id
+     LEFT JOIN dct_lku_data cabgroup ON dct_items_cabinet.cabinet_grp_lku_id = cabgroup.lku_id
+     LEFT JOIN dct_lku_data domain ON dct_items_it.domain_lku_id = domain.lku_id
+     LEFT JOIN dct_lks_data osi ON dct_items_it.osi_layer = osi.lks_id
+     LEFT JOIN dct_lks_data phase ON dct_items_me.phase_lks_id = phase.lks_id
+     LEFT JOIN dct_lks_data phasevoltslks ON dct_items_me.phase_volts_lks_id = phasevoltslks.lks_id
+     LEFT JOIN dct_lks_data linevoltslks ON dct_items_me.line_volts_lks_id = linevoltslks.lks_id
+     LEFT JOIN dct_lks_data ratingvlks ON dct_items_me.rating_v_lks_id = ratingvlks.lks_id
+     LEFT JOIN dct_lks_data budgetstatus ON dct_items_it.budget_status_lks_id = budgetstatus.lks_id
+     LEFT JOIN dct_models ON dct_items.model_id = dct_models.model_id
+     LEFT JOIN dct_models_me ON dct_items.model_id = dct_models_me.model_id
+     LEFT JOIN dct_lks_data ratingvmodellks ON dct_models_me.rating_v_lks_id = ratingvmodellks.lks_id
+     LEFT JOIN dct_mfrs ON dct_models.mfr_id = dct_mfrs.mfr_id
+     LEFT JOIN dct_datastores ON dct_items_it.datastore_id = dct_datastores.datastore_id
+     LEFT JOIN dct_items c ON dct_items_it.chassis_id = c.item_id
+     LEFT JOIN dct_models d ON c.model_id = d.model_id
+     LEFT JOIN dct_models_chassis e ON d.model_id = e.model_id AND dct_items.facing_lks_id = e.face_lks_id
+     LEFT JOIN dct_models_chassis_slots f ON e.model_chassis_id = f.model_chassis_id AND f.slot_number = dct_items.slot_position
+     LEFT JOIN dct_projects project ON dct_item_details.project_id = project.project_id
+     LEFT JOIN dct_lks_data origin ON dct_item_details.origin_lks_id = origin.lks_id
+     LEFT JOIN dct_lku_data substatuslku ON dct_items.substatus_lku_id = substatuslku.lku_id
+     LEFT JOIN ( SELECT dct_ports_power.item_id,
+            min(round(dct_ports_power.watts_budget::numeric / dct_ports_power.watts_nameplate::numeric * 100::numeric, 0)) AS wattsderate
+           FROM dct_ports_power
+          WHERE dct_ports_power.is_optional = false AND dct_ports_power.subclass_lks_id = 411 AND dct_ports_power.watts_nameplate > 0
+          GROUP BY dct_ports_power.item_id) p ON dct_items.item_id = p.item_id
+     LEFT JOIN dct_lks_data panel ON dct_items_me.panel_layout_lks_id = panel.lks_id
+     LEFT JOIN dct_lks_data pstate ON dct_items_me.preferred_state_lks_id = pstate.lks_id
+     LEFT JOIN dct_lks_data astate ON dct_items_me.active_state_lks_id = astate.lks_id
+     LEFT JOIN dct_lku_data wire ON dct_items_me.wire_gauge_lku_id = wire.lku_id
+     LEFT JOIN dct_lks_data outputphase ON dct_items_me.output_phase_lks_id = outputphase.lks_id
+     LEFT JOIN dct_lks_data wirecolora ON dct_items_me.phase_a_color_lks_id = wirecolora.lks_id
+     LEFT JOIN dct_lks_data wirecolorb ON dct_items_me.phase_b_color_lks_id = wirecolorb.lks_id
+     LEFT JOIN dct_lks_data wirecolorc ON dct_items_me.phase_c_color_lks_id = wirecolorc.lks_id
+  WHERE dct_item_details.origin_lks_id <> 1121;

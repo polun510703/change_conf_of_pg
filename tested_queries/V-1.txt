@@ -1,0 +1,250 @@
+select
+	"TABLE_ITEMS"."item_id"
+	from (
+	select
+		"dct_items" .*
+	from
+		"dct_items"
+	where
+		"item_id" in (
+		select
+			"ITEM"."item_id"
+		from
+			"dct_items" as "ITEM"
+		where
+			("ITEM"."item_detail_id" in (
+			select
+				"ITEM_DETAIL"."item_detail_id"
+			from
+				"dct_item_details" as "ITEM_DETAIL"
+			where
+				((true
+					and "ITEM_DETAIL"."serial_number" ilike '%RACK%')
+				or (true
+					and "ITEM_DETAIL"."asset_number" ilike '%RACK%')
+				or (true
+					and "ITEM_DETAIL"."contract_number" ilike '%RACK%')
+				or (true
+					and "ITEM_DETAIL"."po_number" ilike '%RACK%')
+				or "ITEM_DETAIL"."function_lku_id" in (
+				select
+					"LKU"."lku_id"
+				from
+					"dct_lku_data" as "LKU"
+				where
+					(true
+						and "LKU"."lku_value" ilike '%RACK%'))
+				or "ITEM_DETAIL"."department_lku_id" in (
+				select
+					"LKU"."lku_id"
+				from
+					"dct_lku_data" as "LKU"
+				where
+					(true
+						and "LKU"."lku_value" ilike '%RACK%'))
+				or "ITEM_DETAIL"."purpose_lku_id" in (
+				select
+					"LKU"."lku_id"
+				from
+					"dct_lku_data" as "LKU"
+				where
+					(true
+						and "LKU"."lku_value" ilike '%RACK%'))
+				or "ITEM_DETAIL"."origin_lks_id" in (
+				select
+					"LKS"."lks_id"
+				from
+					"dct_lks_data" as "LKS"
+				where
+					(true
+						and "LKS"."lkp_value" ilike '%RACK%'))
+				or "ITEM_DETAIL"."project_id" in (
+				select
+					"PROJECTS"."project_id"
+				from
+					"dct_projects" as "PROJECTS"
+				where
+					(true
+						and "PROJECTS"."project_number" ilike '%RACK%'))))
+			or (true
+				and "ITEM"."item_name" ilike '%RACK%')
+			or (true
+				and "ITEM"."item_alias" ilike '%RACK%')
+			or (true
+				and "ITEM"."location_reference" ilike '%RACK%')
+			or "ITEM"."model_id" in (
+			select
+				"MODELS"."model_id"
+			from
+				"dct_models" as "MODELS"
+			where
+				((true
+					and "MODELS"."model_name" ilike '%RACK%')
+				or (true
+					and "MODELS"."mounting" ilike '%RACK%')
+				or (true
+					and "MODELS"."form_factor" ilike '%RACK%')
+				or "MODELS"."mfr_id" in (
+				select
+					"MFRS"."mfr_id"
+				from
+					"dct_mfrs" as "MFRS"
+				where
+					(true
+						and "MFRS"."mfr_name" ilike '%RACK%'))))
+			or "ITEM"."class_lks_id" in (
+			select
+				"LKS"."lks_id"
+			from
+				"dct_lks_data" as "LKS"
+			where
+				(true
+					and "LKS"."lkp_value" ilike '%RACK%'))
+			or "ITEM"."subclass_lks_id" in (
+			select
+				"LKS"."lks_id"
+			from
+				"dct_lks_data" as "LKS"
+			where
+				(true
+					and "LKS"."lkp_value" ilike '%RACK%'))
+			or "ITEM"."status_lks_id" in (
+			select
+				"LKS"."lks_id"
+			from
+				"dct_lks_data" as "LKS"
+			where
+				(true
+					and "LKS"."lkp_value" ilike '%RACK%'))
+			or "ITEM"."location_id" in (
+			select
+				"LOCATIONS"."location_id"
+			from
+				"dct_locations" as "LOCATIONS"
+			where
+				((true
+					and "LOCATIONS"."dc_name" ilike '%RACK%')
+				or (true
+					and "LOCATIONS"."code" ilike '%RACK%'))))
+	union
+		select
+			"JOIN_ITEM"."item_id"
+		from
+			"dct_items" as "ITEM"
+		join "dct_items" as "JOIN_ITEM" on
+			"ITEM"."item_id" = "JOIN_ITEM"."parent_item_id"
+		where
+			(true
+				and "ITEM"."item_name" ilike '%RACK%')
+	union
+		select
+			"ITEM_IT"."item_id"
+		from
+			"dct_items_it" as "ITEM_IT"
+		join "dct_items" as "JOIN_ITEM" on
+			"ITEM_IT"."chassis_id" = "JOIN_ITEM"."item_id"
+		where
+			(true
+				and "JOIN_ITEM"."item_name" ilike '%RACK%')
+	union
+		select
+			"REQUESTS"."item_id"
+		from
+			"dct_requests" as "REQUESTS"
+		join "dct_lks_data" as "LKS" on
+			"REQUESTS"."stage_lks_id" = "LKS"."lks_id"
+		where
+			("REQUESTS"."type_lks_id" not in ('1107', '1108', '1109')
+				and "LKS"."lks_id" in ('931', '932', '933', '934', '935', '936')
+					and true
+					and "LKS"."lkp_value" ilike '%RACK%')
+	union
+		select
+			"PORTS"."item_id"
+		from
+			"dct_ports_data" as "PORTS"
+		join "tblipteaming" as "IP_TEAMING" on
+			"PORTS"."port_data_id" = "IP_TEAMING"."portid"
+		join "tblipaddresses" as "IP_ADDRESS" on
+			"IP_TEAMING"."ipaddressid" = "IP_ADDRESS"."id"
+		where
+			(true
+				and "IP_ADDRESS"."ipaddress" ilike '%RACK%')
+	union
+		select
+			"PORTS"."item_id"
+		from
+			"dct_ports_data" as "PORTS"
+		join "tblipteaming" as "IP_TEAMING" on
+			"PORTS"."port_data_id" = "IP_TEAMING"."portid"
+		join "tblipaddresses" as "IP_ADDRESS" on
+			"IP_TEAMING"."ipaddressid" = "IP_ADDRESS"."id"
+		where
+			(true
+				and "IP_ADDRESS"."ipaddress" like 'rack1')
+	union
+		select
+			"CUSTOM_FIELD_VALUES"."entity_id"
+		from
+			"dct_custom_field_values" as "CUSTOM_FIELD_VALUES"
+		join "dct_custom_fields" as "CUSTOM_FIELDS" on
+			"CUSTOM_FIELD_VALUES"."custom_field_id" = "CUSTOM_FIELDS"."custom_field_id"
+		join "dct_lks_data" as "LKS" on
+			("CUSTOM_FIELDS"."datatype_lks_id" = "LKS"."lks_id"
+				and "LKS"."lkp_value_code" = '91019')
+		where
+			(cast('1900-01-01 00:00:00' as timestamp) > cast('1969-12-31 19:00:00' as timestamp)
+				and cast("CUSTOM_FIELD_VALUES"."value" as timestamp) between cast('1900-01-01 00:00:00' as timestamp) and cast('1900-01-01 23:59:59.999' as timestamp)
+					and "CUSTOM_FIELD_VALUES"."entity_type_lks_id" in (
+					select
+						"LKS"."lks_id"
+					from
+						"dct_lks_data" as "LKS"
+					where
+						"LKS"."lkp_type_name" = 'CLASS'))
+	union
+		select
+			"CUSTOM_FIELD_VALUES"."entity_id"
+		from
+			"dct_custom_field_values" as "CUSTOM_FIELD_VALUES"
+		join "dct_custom_fields" as "CUSTOM_FIELDS" on
+			"CUSTOM_FIELD_VALUES"."custom_field_id" = "CUSTOM_FIELDS"."custom_field_id"
+		join "dct_lks_data" as "LKS" on
+			("CUSTOM_FIELDS"."datatype_lks_id" = "LKS"."lks_id"
+				and "LKS"."lkp_value_code" not in ('91019', '91021', '91022', '91023'))
+		where
+			(true
+				and "CUSTOM_FIELD_VALUES"."value" ilike '%RACK%'
+				and "CUSTOM_FIELD_VALUES"."entity_type_lks_id" in (
+				select
+					"LKS"."lks_id"
+				from
+					"dct_lks_data" as "LKS"
+				where
+					"LKS"."lkp_type_name" = 'CLASS'))
+	union
+		select
+			"CUSTOM_FIELD_VALUES"."entity_id"
+		from
+			"dct_custom_field_values" as "CUSTOM_FIELD_VALUES"
+		join "dct_custom_fields_picks" as "CUSTOM_FIELDS_PICKS" on
+			"CUSTOM_FIELD_VALUES"."custom_fields_pick_id" = "CUSTOM_FIELDS_PICKS"."custom_fields_pick_id"
+		where
+			(true
+				and "CUSTOM_FIELDS_PICKS"."label" ilike '%RACK%'
+				and "CUSTOM_FIELD_VALUES"."entity_type_lks_id" in (
+				select
+					"LKS"."lks_id"
+				from
+					"dct_lks_data" as "LKS"
+				where
+					"LKS"."lkp_type_name" = 'CLASS')))) as "TABLE_ITEMS"
+join "dct_lks_data" as "ITEM_CLASSES" on
+	"TABLE_ITEMS"."class_lks_id" = "ITEM_CLASSES"."lks_id"
+join "dct_lks_data" as "ITEM_STATUS" on
+	"TABLE_ITEMS"."status_lks_id" = "ITEM_STATUS"."lks_id"
+	where ("ITEM_CLASSES"."lkp_value_code" in ('1100', '1200', '1300', '1400', '1500', '2100', '2200', '2300', '2400', '1500', '5000', '5100', '2700', '2600', '3500')
+		and "ITEM_STATUS"."lkp_value_code" <> '5091'
+		and "ITEM_STATUS"."lkp_value_code" <> '5089')
+	order by "TABLE_ITEMS"."item_name" asc,
+	"TABLE_ITEMS"."item_id" asc

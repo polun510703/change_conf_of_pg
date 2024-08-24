@@ -1,3 +1,7 @@
+##
+# this script is used to test SQL queries which can not be explained e.g. 'CREATE OR REPLACE VIEW'
+##
+
 import psycopg2
 import os
 import csv
@@ -185,13 +189,11 @@ def get_timestamp():
         print("result : {0} \n error : {1}".format(result, error))
         return int(result[0])
 
-
-def run_test(cold:bool, server:Server, iter_time=10, combination_path="./config/db_conf.json", slower=False):
+def run_test(cold: bool, server: Server, iter_time=10, combination_path="./config/db_conf.json", slower=False):
     report_path = "./report/report_{}".format(time.strftime("%Y-%m-%d-%H%M%S"))
-    if os.path.exists(report_path) == False:
+    if not os.path.exists(report_path):
         os.mkdir(report_path)
     query_path = "./raw_queries"
-    query_dict = {}
     query_dict = get_sql_list(query_path)
     print("The following test queries are loaded :", query_dict.keys())
     params = db_config("./config/database.ini")
@@ -199,109 +201,81 @@ def run_test(cold:bool, server:Server, iter_time=10, combination_path="./config/
     content = ""
     with open("./config/default.conf", "r") as s:
         for i in s.readlines():
-            ori+=i
+            ori += i
     for set in generate_all_possible_config(combination_path):
         content = ori
         conf_alter = ""
         for k, v in set.items():
-            conf_alter+="{0}='{1}'\n".format(k, v)
-        content+=conf_alter
+            conf_alter += "{0}='{1}'\n".format(k, v)
+        content += conf_alter
         change_pg_conf(content)
         wait_for_cpu()
-        # start sending query
-        # need to store explain and conf
-        explain = ""
         for k, v in query_dict.items():
-            total_time =0
-            tmp_folder_name = str(k.split('.')[0])+"tmp"
-            small_report_path = report_path+"/"+tmp_folder_name
+            total_time = 0
+            tmp_folder_name = str(k.split('.')[0]) + "tmp"
+            small_report_path = report_path + "/" + tmp_folder_name
             report_dct = {
-                "sql":[],
-                "exec_time":[],
-                "plan_time":[],
-                "total_time":[],
-                "timestamp":[]
+                "sql": [],
+                "exec_time": [],
+                "timestamp": []
             }
-            if os.path.exists(small_report_path) == False:
+            if not os.path.exists(small_report_path):
                 os.mkdir(small_report_path)
             for i in range(iter_time):
-                if cold == True : 
+                if cold:
                     clean_cache()
                     wait_for_cpu()
-                conn = Connection(params=params, query=v)
-                # get the start time timestamp
                 report_dct["timestamp"].append(get_timestamp())
-                # start the ext4slower
-                # pid = conn.get_pid()
-                # server.start_record_pid(pid)
-                if slower : 
+                if slower:
                     server.start_record()
                 time.sleep(1)
-                # explain = send_query_explain(params, v) # dict
-                explain = conn.get_explain_of_query() # dict
-                explain_json = json.dumps(explain)
-                print(k.split('.')[0], 
-                      "exec : ",
-                      explain['Execution Time'],"ms plan : ", 
-                      explain['Planning Time'], "ms")
-                report_dct["exec_time"].append(int(explain['Execution Time']))
-                report_dct["plan_time"].append(int(explain['Planning Time']))
-                report_dct["total_time"].append(int(explain['Execution Time'])+ int(explain['Planning Time']))
-                report_dct["sql"].append(str(str(k.split('.')[0])+"_"+str(i)))
+
+                # Measure the actual execution time using execute_query_with_timing
+                exec_time = server.execute_query_with_timing(v)
+                if exec_time is None:
+                    print(f"Skipping iteration {i} for query {k} due to execution error.")
+                    continue
+                
+                print(k.split('.')[0], "exec : ", exec_time, "ms")
+                report_dct["exec_time"].append(exec_time)
+                report_dct["sql"].append(str(str(k.split('.')[0]) + "_" + str(i)))
                 if i != 0:
-                    total_time += int(explain['Execution Time'])+ int(explain['Planning Time'])
-                if os.path.exists(small_report_path+"/plan") == False:
-                    os.mkdir(small_report_path+"/plan")
-                with open(small_report_path+"/plan/"+str(k.split('.')[0])+"_"+str(i)+".json", "w") as plan_file:
-                    plan_file.writelines(str(explain_json))
-                # open the folder and store the bcc report (ext4slower)
-                if os.path.exists(small_report_path+"/bcc") == False and slower:
-                    os.mkdir(small_report_path+"/bcc")
-                if slower :
-                    server.stop_record(small_report_path+"/bcc/"+str(k.split('.')[0])+"_"+str(i)+".csv")
-            if (iter_time == 1):
-                total_time/=1
+                    total_time += exec_time
+                if not os.path.exists(small_report_path + "/bcc") and slower:
+                    os.mkdir(small_report_path + "/bcc")
+                if slower:
+                    server.stop_record(small_report_path + "/bcc/" + str(k.split('.')[0]) + "_" + str(i) + ".csv")
+            if iter_time == 1:
+                total_time /= 1
             else:
-                total_time/=(iter_time-1)
-            folder_name=str(k.split('.')[0])+"_"+str(int(total_time))
-            if cold :
-                folder_name+="_Cold"
+                total_time /= (iter_time - 1)
+            folder_name = str(k.split('.')[0]) + "_" + str(int(total_time))
+            if cold:
+                folder_name += "_Cold"
             else:
-                folder_name+="_Warm"
-            # make sure the name of folder is valid
+                folder_name += "_Warm"
             folder_dup = 0
             ori_folder_name = folder_name
-            while os.path.exists(report_path+"/"+folder_name) == True:
-                folder_dup+=1
+            while os.path.exists(report_path + "/" + folder_name):
+                folder_dup += 1
                 folder_name = "{0}_{1}".format(ori_folder_name, folder_dup)
-            os.rename(report_path+"/"+tmp_folder_name, report_path+"/"+folder_name)
-            small_report_path = report_path+"/"+folder_name
-            if os.path.exists(small_report_path) == False:
+            os.rename(report_path + "/" + tmp_folder_name, report_path + "/" + folder_name)
+            small_report_path = report_path + "/" + folder_name
+            if not os.path.exists(small_report_path):
                 os.mkdir(small_report_path)
-            with open(small_report_path+"/conf.conf", "w") as conf_file:
+            with open(small_report_path + "/conf.conf", "w") as conf_file:
                 conf_file.writelines(conf_alter)
-            # store the report
             df = pd.DataFrame(report_dct)
-            # df_sorted = df.sort_values(by="total_time", ascending = False)
-            df.to_csv(small_report_path+"/report.csv")
-            # df_sorted.to_csv(small_report_path+"/report2.csv")
+            df.to_csv(small_report_path + "/report.csv")
+
 
 if __name__ == "__main__":
     s = Server('./config/database.ini')
     s.connect()
     if s.is_connect == False:
         print("ssh connection failed...")
+    iter_time = 3
     
-    # the number of test iterations   
-    iter_time = 2
-    
-    ## Test SQL queries with different configurations on PostgreSQL 12
-    # default_conf_path = "./config/db_conf_default_pg12.json"
-    # sunbird_conf_path = "./config/db_conf_sunbird_pg12.json"
-    # v5_conf_path = "./config/db_conf_v5_pg12.json"
-    
-    ## Test SQL queries with different configurations on PostgreSQL 15
-    default_conf_path = "./config/db_conf_default_pg15.json"
     sunbird_conf_path = "./config/db_conf_sunbird_pg15.json"
     v5_conf_path = "./config/db_conf_v5_pg15.json"
     
@@ -309,10 +283,8 @@ if __name__ == "__main__":
     # Please check the configuration files when you are going to test SQL queries on PostgreSQL 12.
     # The database could be corrupted if you test using PostgreSQL 15 configurations on PostgreSQL 12.
     ##
-    run_test(False, s, iter_time, default_conf_path) # warm
     run_test(False, s, iter_time, sunbird_conf_path) # warm
     run_test(False, s, iter_time, v5_conf_path) # warm
-    run_test(True, s, iter_time, default_conf_path)  # cold
     run_test(True, s, iter_time, sunbird_conf_path)  # cold
     run_test(True, s, iter_time, v5_conf_path)  # cold
     s.disconnect()

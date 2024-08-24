@@ -1,0 +1,134 @@
+SELECT dct_models.model_id AS "ModelID",
+    dct_models.model_name AS "ModelName",
+    ( SELECT string_agg(dct_model_aliases.alias_model::text, '; '::text ORDER BY (dct_model_aliases.alias_model::text)) AS string_agg
+           FROM dct_model_aliases
+          WHERE dct_model_aliases.model_id = dct_models.model_id) AS "ModelAliases",
+    dct_models.mfr_id AS "MakeID",
+    dct_mfrs.mfr_name AS "Make",
+    ( SELECT string_agg(dct_mfr_aliases.alias_make::text, ', '::text ORDER BY (dct_mfr_aliases.alias_make::text)) AS string_agg
+           FROM dct_mfr_aliases
+          WHERE dct_mfr_aliases.mfr_id = dct_mfrs.mfr_id) AS "MakeAliases",
+    class.lkp_value AS "Class",
+    dct_models.mounting AS "Mounting",
+    dct_models.form_factor AS "FormFactor",
+    dct_models.ru_height AS "RUHeight",
+    dct_models.dim_h AS "Height",
+    dct_models.dim_w AS "Width",
+    dct_models.dim_d AS "Depth",
+    dct_models.weight AS "Weight",
+    dct_models.front_image AS "HasFrontImage",
+    dct_models.rear_image AS "HasRearImage",
+    dct_models.creation_date AS "CreationDate",
+    dct_models.update_date AS "UpdateDate",
+    dct_models.created_by AS "CreatedBy",
+    dct_models.library_version AS "LibraryVersion",
+    dct_models.is_never_check AS "DontUpdate",
+    dct_models.is_standard AS "MyCompanyStandard",
+    status.lkp_value AS "Status",
+        CASE
+            WHEN dct_models.library_version > 1::numeric AND (dct_models.created_by::text = ANY (ARRAY['Raritan'::character varying::text, 'Sunbird'::character varying::text])) THEN 'Is Sunbird'::text
+            WHEN dct_models.library_version > 1::numeric AND (dct_models.created_by::text <> ALL (ARRAY['Raritan'::character varying::text, 'Sunbird'::character varying::text])) THEN 'Is Modified'::text
+            ELSE 'Is Custom'::text
+        END AS "CustomModels",
+    dct_models.used_count AS "UsedCount",
+    dct_models.data_ports_count AS "DataPortsCount",
+    dct_models.power_ports_count AS "PowerPortsCount",
+    dct_models.front_slots_count AS "FrontSlotsCount",
+    dct_models.rear_slots_count AS "BackSlotsCount",
+    dct_models.notes AS "Notes",
+    get_redundancy(dct_models.ps_redundancy) AS "PowerSupplyRedundancy",
+    dct_models.original_power AS "OriginalPower",
+    dct_models.auto_power_budget AS "AutoPowerBudget",
+        CASE
+            WHEN p.watts_nameplate = 0 THEN budgetstatus.lkp_value::text
+            ELSE ((budgetstatus.lkp_value::text || ' ('::text) || round(p.watts_budget::numeric / p.watts_nameplate::numeric * 100::numeric, 0)) || '%)'::text
+        END AS "BudgetStatus",
+    dct_models.part_number AS "PartNumber",
+    dct_models.description AS "Description",
+    country.lku_value AS "MadeIn",
+    dct_models.warranty_period AS "WarrantyPeriod",
+    dct_models.weight_capacity AS "WeightCapacity",
+    modelit.cpu_sockets AS "CpuSockets",
+    modelit.ram_slots AS "RamSlots",
+    modelit.expansion_slots AS "ExpansionSlots",
+    modelit.daughter_board_slots AS "DaughterBoardSlots",
+    modelit.disk_bays AS "DiskBays",
+    modelit.power_supply_slots AS "PowerSupplySlots",
+    modelit.cassette_slots AS "CassetteSlots",
+    modelit.cpu_type AS "CpuType",
+    modelit.cpu_qty AS "CpuQuantity",
+    modelit.ram_gb AS "RAM_GB",
+    modelit.disk_gb AS "Disk_GB",
+    airflow.lkp_value AS "Airflow",
+    modelme.rating_amps AS "MainBreakerAmps",
+    modelme.panels_qty AS "MaxPanels",
+    modelme.rating_kva AS "Rating_kVA",
+    modelme.rating_kw AS "Rating_kW",
+    ratingv.lkp_value AS "Rating_Vac",
+    modelme.rating_tons AS "Capacity_Tons",
+    modelme.rating_kw AS "Capacity_kW",
+    modelme.battery_nominal_volts AS "NominalVoltage",
+    modelme.amp_hour_1 AS "Capacity1_AH",
+    modelme.ah1_rate_hours AS "Capacity1Rate_Hours",
+    modelme.amp_hour_2 AS "Capacity2_AH",
+    modelme.ah2_rate_hours AS "Capacity2Rate_Hours",
+    modelme.battery_cells_count AS "NumberOfCells",
+    modelme.battery_discharge_vpc AS "Discharge_Vpc",
+    modelme.rating_amps AS "OutputCapacityAmps",
+    ratingv.lkp_value AS "OutputVoltage_Vdc",
+    subclass.lkp_value AS "Subclass",
+        CASE
+            WHEN phase.lkp_value_code = 7022 THEN '3-Wire + Ground'::text
+            WHEN phase.lkp_value_code = 7023 THEN '4-Wire + Ground'::text
+            ELSE NULL::text
+        END AS "OutputWiring",
+    modelme.cfm AS "Airflow_Rate",
+    modelme.poles_qty AS "NumberOfPoles",
+    modelme.compensation_factor * 100::numeric AS "CompensationFactor",
+    modelme.rating_kva AS "RatingKva",
+    modelme.rating_kva * modelme.compensation_factor AS "CompensatedKva",
+    modelme.rating_kw AS "RatingKw",
+    modelme.rating_kw * modelme.compensation_factor AS "CompensatedKw",
+    modelme.rating_amps AS "RatingAmps",
+    modelme.rating_amps * modelme.compensation_factor AS "CompensatedA",
+    ratingv.lkp_value AS "RatingVac",
+    phase.lkp_value AS "Phase",
+    modelme.output_phase_lks_id AS "OutputPhase",
+    ( SELECT c.connector_name
+           FROM dct_lku_connectors c
+          WHERE c.lku_connector_id = modelme.lku_connector_id) AS "LoadDeviceConnectorType",
+    modelme.ic_rating_ka AS "IcRatingKa",
+    ( SELECT dct_lku_data.lku_value
+           FROM dct_lku_data
+          WHERE dct_lku_data.lku_id = modelme.wire_gauge_lku_id) AS "WireGauge",
+    modelme.speed_rpm AS "SpeedRPM",
+    modelme.tank_size AS "TankSize",
+    modelme.tank_size * modelme.compensation_factor AS "CompensatedTankSize",
+    modelme.built_in_tank_size AS "BuiltinTankSize",
+    dct_models.updated_by AS "UpdatedBy"
+   FROM dct_models
+     JOIN dct_mfrs ON dct_models.mfr_id = dct_mfrs.mfr_id
+     JOIN dct_lks_data class ON dct_models.class_lks_id = class.lks_id
+     LEFT JOIN dct_lks_data subclass ON dct_models.subclass_lks_id = subclass.lks_id
+     LEFT JOIN dct_lku_data country ON dct_models.made_in_lku_id = country.lku_id
+     LEFT JOIN dct_models_it modelit ON dct_models.model_id = modelit.model_id
+     LEFT JOIN dct_models_me modelme ON dct_models.model_id = modelme.model_id
+     LEFT JOIN dct_lks_data phase ON modelme.phase_lks_id = phase.lks_id
+     LEFT JOIN dct_lks_data ratingv ON modelme.rating_v_lks_id = ratingv.lks_id
+     LEFT JOIN dct_lks_data airflow ON modelit.airflow_lks_id = airflow.lks_id
+     LEFT JOIN dct_lks_data budgetstatus ON dct_models.budget_status_lks_id = budgetstatus.lks_id
+     LEFT JOIN ( SELECT DISTINCT ON (dmpp.model_id) dmpp.model_id,
+            dmpp.sort_order,
+            dmpp.watts_nameplate,
+            dmpp.watts_budget
+           FROM dct_model_ports_power dmpp
+          WHERE dmpp.is_optional = false
+          ORDER BY dmpp.model_id, dmpp.sort_order) p ON dct_models.model_id = p.model_id
+     JOIN dct_lks_data status ON dct_models.status_lks_id = status.lks_id
+  WHERE dct_models.status_lks_id = 1323
+  ORDER BY (
+        CASE
+            WHEN dct_models.library_version > 1::numeric AND (dct_models.created_by::text = ANY (ARRAY['Raritan'::character varying::text, 'Sunbird'::character varying::text])) THEN 'Is Sunbird'::text
+            WHEN dct_models.library_version > 1::numeric AND (dct_models.created_by::text <> ALL (ARRAY['Raritan'::character varying::text, 'Sunbird'::character varying::text])) THEN 'Is Modified'::text
+            ELSE 'Is Custom'::text
+        END);

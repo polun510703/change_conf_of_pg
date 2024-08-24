@@ -1,0 +1,161 @@
+SELECT
+  "TABLE_MODELS"."model_id" AS "modelDetailId",
+  "TABLE_MAKES"."mfr_name" AS "modelMfrDetails",
+  "TABLE_MODEL_MAKE_ALIAS"."alias_make" AS "mfrAliases",
+  "TABLE_MODELS"."model_name" AS "modelName",
+  "TABLE_MODEL_ALIAS"."alias_model" AS "modelAliases",
+  "TABLE_MODELS"."part_number" AS "partNumber",
+  "TABLE_MODELS"."description" AS "description",
+  "MODEL_CLASSES"."lkp_value" AS "classLookup",
+  "MODEL_SUBCLASSES"."lkp_value" AS "subclassLookup",
+  "TABLE_MODELS"."mounting" AS "mounting",
+  "TABLE_MODELS"."form_factor" AS "formFactor",
+  CAST("TABLE_MODELS"."dim_w" AS double precision) AS "dimWidth",
+  CAST("TABLE_MODELS"."dim_d" AS double precision) AS "dimDepth",
+  CAST("TABLE_MODELS"."dim_h" AS double precision) AS "dimHeight",
+  "TABLE_MODELS"."ru_height" AS "ruHeight",
+  CAST("TABLE_MODELS"."weight" AS double precision) AS "weight",
+  "TABLE_MODELS"."potential_power" AS "potentialPower",
+  "MODEL_AIRFLOW"."lkp_value" AS "airFlow",
+  CAST("TABLE_ME_MODELS"."rating_kva" AS double precision) AS "ratingKva",
+  CASE
+    WHEN "TABLE_MODELS"."class_lks_id" IN (
+      18, 17, 15, 12
+    ) THEN "MODEL_RATING_V"."lkp_value"
+    ELSE null
+  END AS "ratingV",
+  CASE
+    WHEN "MODEL_INPUT_PHASE"."lkp_value_code" = 7022 THEN '3-Wire + Ground'
+    WHEN "MODEL_INPUT_PHASE"."lkp_value_code" = 7023 THEN '4-Wire + Ground'
+    ELSE null
+  END AS "outputWiring",
+  "TABLE_MODELS"."datasheet" AS "datasheet",
+  "TABLE_MADE_IN"."lku_value" AS "madeIn",
+  CAST("TABLE_MODELS"."warranty_period" AS double precision) AS "warrantyPeriod",
+  "MODEL_STATUS"."lkp_value" AS "statusLookup",
+  "TABLE_MODELS"."companyStandard" AS "companyStandard",
+  "TABLE_MODELS"."autoPowerBudget" AS "autoPowerBudget",
+  "TABLE_MODELS"."used_count" AS "modelInUse",
+  "TABLE_MODELS"."front_slots_count" AS "frontSlotsCount",
+  "TABLE_MODELS"."rear_slots_count" AS "backSlotsCount",
+  "TABLE_MODELS"."data_ports_count" AS "dataPortsCount",
+  "TABLE_MODELS"."power_ports_count" AS "powerPortsCount",
+  "TABLE_MODELS"."frontImage" AS "frontImage",
+  "TABLE_MODELS"."rearImage" AS "rearImage",
+  CAST("TABLE_MODELS"."creationDate" AS varchar) AS "creationDate",
+  CAST("TABLE_MODELS"."library_version" AS double precision) AS "libraryVersion",
+  "TABLE_MODELS"."origin" AS "origin",
+  "TABLE_MODELS"."notes" AS "notes",
+  "TABLE_POLICY"."policy_name" AS "policy",
+  "TABLE_MODELS"."dontUpdate" AS "neverCheck",
+  CAST("TABLE_MODELS"."updateDate" AS varchar) AS "updateDate",
+  "MODEL_BUDGET_STATUS"."lkp_value" AS "modelBudgetStatusLookup",
+  CAST("TABLE_ME_MODELS"."rating_amps" AS double precision) AS "ratingAmps"
+FROM (
+  SELECT
+    "dct_models".*,
+    "dct_models"."is_standard" AS "companyStandard",
+    CASE
+      WHEN "dct_models"."auto_power_budget" = TRUE THEN 'Yes'
+      ELSE 'No'
+    END AS "autoPowerBudget",
+    CASE
+      WHEN "dct_models"."front_image" = TRUE THEN 'Yes'
+      ELSE 'No'
+    END AS "frontImage",
+    CASE
+      WHEN "dct_models"."rear_image" = TRUE THEN 'Yes'
+      ELSE 'No'
+    END AS "rearImage",
+    coalesce("dct_models"."creation_date", "dct_models"."creation_date") AS "creationDate",
+    CASE
+      WHEN (
+        "dct_models"."library_version" > 0E0
+        AND (
+          "dct_models"."created_by" = 'Raritan'
+          OR "dct_models"."created_by" = 'Sunbird'
+        )
+        AND (
+          "dct_models"."updated_by" IS NULL
+          OR "dct_models"."updated_by" = 'unknown'
+          OR "dct_models"."updated_by" = 'Raritan'
+          OR "dct_models"."updated_by" = 'Sunbird'
+        )
+      ) THEN 'Sunbird'
+      WHEN (
+        "dct_models"."library_version" > 0E0
+        AND (
+          "dct_models"."created_by" = 'Raritan'
+          OR "dct_models"."created_by" = 'Sunbird'
+        )
+        AND "dct_models"."updated_by" IS NOT NULL
+        AND "dct_models"."updated_by" <> 'unknown'
+        AND "dct_models"."updated_by" <> 'Raritan'
+        AND "dct_models"."updated_by" <> 'Sunbird'
+      ) THEN 'Sunbird Modified'
+      WHEN (
+        "dct_models"."created_by" <> 'Raritan'
+        AND "dct_models"."created_by" <> 'Sunbird'
+      ) THEN 'Customer'
+      ELSE ''
+    END AS "origin",
+    "dct_models"."is_never_check" AS "dontUpdate",
+    coalesce("dct_models"."update_date", "dct_models"."update_date") AS "updateDate"
+  FROM "dct_models"
+  WHERE "dct_models"."model_id" IN (
+    33249, 31170, 30329, 30330, 27038, 31189, 34310, 29256, 30941, 26910, 5296, 
+    29390, 20537, 31202, 33679, 20651, 17071, 17072, 17073, 17074, 34805, 31530, 
+    30713, 30714, 32727, 32508, 32428, 20637, 30712, 30711, 20432, 20433, 30715, 
+    10803, 10804, 10805, 10806, 10808, 10809, 6513, 21011, 30789, 27907, 27921, 
+    29628, 30728, 33360, 29374, 31565, 31567, 20659, 27910, 20842, 26794, 9813, 
+    9815, 32765, 28104, 2471, 28025, 31552, 30129, 32182, 20083, 20084, 28584, 20785, 
+    20786, 6515, 6516, 5162, 5163, 5176, 5177, 6159, 6160, 6161, 6162, 20793, 20794, 
+    20795, 20798, 20799, 6236, 6237, 6238, 6239, 6240, 6241, 6242, 6243, 6244, 6245, 
+    6246, 6247, 6248, 6249, 6250, 6251, 6252
+  )
+) AS "TABLE_MODELS"
+  LEFT OUTER JOIN "dct_lks_data" AS "MODEL_CLASSES"
+    ON "TABLE_MODELS"."class_lks_id" = "MODEL_CLASSES"."lks_id"
+  LEFT OUTER JOIN "dct_mfrs" AS "TABLE_MAKES"
+    ON "TABLE_MODELS"."mfr_id" = "TABLE_MAKES"."mfr_id"
+  LEFT OUTER JOIN (
+    SELECT
+      "dct_mfr_aliases"."mfr_id",
+      string_agg("dct_mfr_aliases"."alias_make", ', ') AS "alias_make"
+    FROM "dct_mfr_aliases"
+    GROUP BY "dct_mfr_aliases"."mfr_id"
+  ) AS "TABLE_MODEL_MAKE_ALIAS"
+    ON "TABLE_MAKES"."mfr_id" = "TABLE_MODEL_MAKE_ALIAS"."mfr_id"
+  LEFT OUTER JOIN "dct_lks_data" AS "MODEL_STATUS"
+    ON "TABLE_MODELS"."status_lks_id" = "MODEL_STATUS"."lks_id"
+  LEFT OUTER JOIN "dct_lks_data" AS "MODEL_SUBCLASSES"
+    ON "TABLE_MODELS"."subclass_lks_id" = "MODEL_SUBCLASSES"."lks_id"
+  LEFT OUTER JOIN "dct_lks_data" AS "MODEL_BUDGET_STATUS"
+    ON "TABLE_MODELS"."budget_status_lks_id" = "MODEL_BUDGET_STATUS"."lks_id"
+  LEFT OUTER JOIN "dct_lku_data" AS "TABLE_MADE_IN"
+    ON "TABLE_MODELS"."made_in_lku_id" = "TABLE_MADE_IN"."lku_id"
+  LEFT OUTER JOIN "dct_policies" AS "TABLE_POLICY"
+    ON "TABLE_MODELS"."policy_id" = "TABLE_POLICY"."policy_id"
+  LEFT OUTER JOIN "dct_models_me" AS "TABLE_ME_MODELS"
+    ON "TABLE_MODELS"."model_id" = "TABLE_ME_MODELS"."model_id"
+  LEFT OUTER JOIN "dct_lks_data" AS "MODEL_INPUT_PHASE"
+    ON "TABLE_ME_MODELS"."phase_lks_id" = "MODEL_INPUT_PHASE"."lks_id"
+  LEFT OUTER JOIN "dct_lks_data" AS "MODEL_RATING_V"
+    ON "TABLE_ME_MODELS"."rating_v_lks_id" = "MODEL_RATING_V"."lks_id"
+  LEFT OUTER JOIN "dct_models_it" AS "TABLE_IT_MODELS"
+    ON "TABLE_MODELS"."model_id" = "TABLE_IT_MODELS"."model_id"
+  LEFT OUTER JOIN "dct_lks_data" AS "MODEL_AIRFLOW"
+    ON "TABLE_IT_MODELS"."airflow_lks_id" = "MODEL_AIRFLOW"."lks_id"
+  LEFT OUTER JOIN (
+    SELECT
+      "dct_model_aliases"."model_id",
+      string_agg("dct_model_aliases"."alias_model", ';') AS "alias_model"
+    FROM "dct_model_aliases"
+    GROUP BY "dct_model_aliases"."model_id"
+  ) AS "TABLE_MODEL_ALIAS"
+    ON "TABLE_MODELS"."model_id" = "TABLE_MODEL_ALIAS"."model_id"
+WHERE (
+  "TABLE_MODELS"."subclass_lks_id" NOT IN (130)
+  OR "TABLE_MODELS"."subclass_lks_id" IS NULL
+)
+ORDER BY "TABLE_MODELS"."model_name" ASC, "TABLE_MODELS"."model_id" ASC

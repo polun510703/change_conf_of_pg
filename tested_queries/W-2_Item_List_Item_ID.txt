@@ -1,0 +1,15 @@
+select
+	"TABLE_ITEMS"."item_id"
+from
+	"dct_items" as "TABLE_ITEMS"
+join "dct_lks_data" as "ITEM_CLASSES" on
+	"TABLE_ITEMS"."class_lks_id" = "ITEM_CLASSES"."lks_id"
+join "dct_lks_data" as "ITEM_STATUS" on
+	"TABLE_ITEMS"."status_lks_id" = "ITEM_STATUS"."lks_id"
+where
+	("ITEM_CLASSES"."lkp_value_code" in (1100, 1200, 1300, 1400, 1500, 2100, 2200, 2300, 2400, 2500, 5000, 5100, 2700, 2600, 3500)
+		and "ITEM_STATUS"."lkp_value_code" <> 5091
+		and "ITEM_STATUS"."lkp_value_code" <> 5089)
+order by
+	"TABLE_ITEMS"."item_name" asc,
+	"TABLE_ITEMS"."item_id" asc offset 0 rows fetch next 100 rows only

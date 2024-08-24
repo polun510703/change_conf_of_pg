@@ -1,0 +1,81 @@
+select
+	"TABLE_ITEMS"."item_id"
+from
+	(
+	select
+		"dct_items" .*
+	from
+		"dct_items"
+	where
+		(true
+			and "dct_items"."class_lks_id" in (2, 3, 1, 5)
+				and true
+				and "dct_items"."free_power_port_count" > 0
+				and true
+				and "dct_items"."free_data_port_count" > 0)) as "TABLE_ITEMS"
+join "dct_lks_data" as "ITEM_CLASSES" on
+	"TABLE_ITEMS"."class_lks_id" = "ITEM_CLASSES"."lks_id"
+join "dct_locations" as "TABLE_LOCATIONS" on
+	"TABLE_ITEMS"."location_id" = "TABLE_LOCATIONS"."location_id"
+join "dct_lks_data" as "ITEM_STATUS" on
+	"TABLE_ITEMS"."status_lks_id" = "ITEM_STATUS"."lks_id"
+left outer join "dct_item_details" as "TABLE_ITEM_DETAILS" on
+	"TABLE_ITEMS"."item_detail_id" = "TABLE_ITEM_DETAILS"."item_detail_id"
+left outer join "dct_items" as "ITEM_PARENT_ITEM" on
+	(("TABLE_ITEMS"."class_lks_id" in (1, 2, 3, 4, 5, 7, 14, 15, 16)
+		or "TABLE_ITEMS"."subclass_lks_id" in (121, 122, 123, 175, 174))
+		and "TABLE_ITEMS"."parent_item_id" = "ITEM_PARENT_ITEM"."item_id")
+left outer join "dct_models" as "ITEM_PARENT_ITEM_MODEL" on
+	"ITEM_PARENT_ITEM"."model_id" = "ITEM_PARENT_ITEM_MODEL"."model_id"
+left outer join (
+	select
+		"dct_cmdb_data_fields" .*
+	from
+		"dct_cmdb_data_fields"
+	where
+		"dct_cmdb_data_fields"."is_modified" = false) as "ITEM_CMDB_TICKET_FIELDS" on
+	"TABLE_ITEMS"."item_id" = "ITEM_CMDB_TICKET_FIELDS"."item_id"
+where
+	(case
+		when ("TABLE_ITEMS"."valid" = false
+			and "TABLE_ITEM_DETAILS"."origin_lks_id" = 1366) then "ITEM_CMDB_TICKET_FIELDS"."item_status"
+		else "ITEM_STATUS"."lkp_value"
+	end = any (cast(string_to_array('Installed,Planned',
+	',') as varchar[]))
+		and case
+			when ("TABLE_ITEMS"."valid" = false
+				and "TABLE_ITEM_DETAILS"."origin_lks_id" = 1366) then "ITEM_CMDB_TICKET_FIELDS"."cabinet_name"
+			else case
+				when ("TABLE_ITEMS"."status_lks_id" = 301
+					and "TABLE_ITEMS"."available_date" is not null) then null
+				when ("TABLE_ITEMS"."class_lks_id" in (6, 12)
+					or "TABLE_ITEMS"."subclass_lks_id" in (145, 146, 149, 131)) then "TABLE_ITEMS"."item_name"
+				when "TABLE_ITEMS"."subclass_lks_id" in (174, 175) then "ITEM_PARENT_ITEM"."item_name"
+				when ("TABLE_ITEMS"."class_lks_id" = 11
+					and "TABLE_ITEMS"."subclass_lks_id" is null) then "TABLE_ITEMS"."item_name"
+				when "ITEM_PARENT_ITEM_MODEL"."mounting" = 'Suspended' then ("ITEM_PARENT_ITEM"."item_name" || ' (Suspended)')
+				else "ITEM_PARENT_ITEM"."item_name"
+			end
+		end is not null
+			and case
+				when ("TABLE_ITEMS"."valid" = false
+					and "TABLE_ITEM_DETAILS"."origin_lks_id" = 1366) then "ITEM_CMDB_TICKET_FIELDS"."cabinet_name"
+				else case
+					when ("TABLE_ITEMS"."status_lks_id" = 301
+						and "TABLE_ITEMS"."available_date" is not null) then null
+					when ("TABLE_ITEMS"."class_lks_id" in (6, 12)
+						or "TABLE_ITEMS"."subclass_lks_id" in (145, 146, 149, 131)) then "TABLE_ITEMS"."item_name"
+					when "TABLE_ITEMS"."subclass_lks_id" in (174, 175) then "ITEM_PARENT_ITEM"."item_name"
+					when ("TABLE_ITEMS"."class_lks_id" = 11
+						and "TABLE_ITEMS"."subclass_lks_id" is null) then "TABLE_ITEMS"."item_name"
+					when "ITEM_PARENT_ITEM_MODEL"."mounting" = 'Suspended' then ("ITEM_PARENT_ITEM"."item_name" || ' (Suspended)')
+					else "ITEM_PARENT_ITEM"."item_name"
+				end
+			end <> ''
+				and "ITEM_CLASSES"."lkp_value_code" in (1100, 1200, 1300, 1400, 1500, 2100, 2200, 2300, 2400, 2500, 5000, 5100, 2700, 2600, 3500)
+					and "ITEM_STATUS"."lkp_value_code" <> 5091
+					and "ITEM_STATUS"."lkp_value_code" <> 5089)
+order by
+	"TABLE_LOCATIONS"."code" asc,
+	"TABLE_ITEMS"."item_name" asc,
+	"TABLE_ITEMS"."item_id" asc offset 0 rows fetch next 100 rows only
