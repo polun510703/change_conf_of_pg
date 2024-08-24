@@ -293,7 +293,7 @@ if __name__ == "__main__":
         print("ssh connection failed...")
     
     # the number of test iterations   
-    iter_time = 2
+    iter_time = 11
     
     ## Test SQL queries with different configurations on PostgreSQL 12
     # default_conf_path = "./config/db_conf_default_pg12.json"
