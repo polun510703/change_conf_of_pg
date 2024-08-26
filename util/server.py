@@ -115,6 +115,32 @@ class Server:
         # store the log to local
         with self.client.open_sftp() as sftp:
             sftp.get("logs/ext4slower.log", store_path)
+            
+    def get_postgresql_major_version(self):
+        cmd = "postgres -V"
+        stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
+        result = stdout.readlines()
+        error = stderr.readlines()
+        
+        if error:
+            print(f"Error retrieving PostgreSQL version: {error}")
+            return None
+        
+        version_line = None
+        if result:
+            version_line = result[0].strip()
+        if version_line is None:
+            print("Failed to retrieve PostgreSQL version")
+            return None
+        
+        try:
+            version_number = version_line.split()[2]
+            major_version = version_number.split('.')[0]
+        except (IndexError, ValueError) as e:
+            print(f"Error: {e}")
+            return None
+        
+        return major_version
 
 
 

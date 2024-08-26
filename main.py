@@ -295,24 +295,43 @@ if __name__ == "__main__":
     # the number of test iterations   
     iter_time = 11
     
+    # check the version of PostgreSQL database you are going to test
+    temp_result = s.get_postgresql_major_version()
+    pg_major_version = int(temp_result)
+    ready_to_test = False
+
     ## Test SQL queries with different configurations on PostgreSQL 12
-    # default_conf_path = "./config/db_conf_default_pg12.json"
-    # sunbird_conf_path = "./config/db_conf_sunbird_pg12.json"
-    # v5_conf_path = "./config/db_conf_v5_pg12.json"
+    if pg_major_version == 12:
+        default_conf_path = "./config/db_conf_default_pg12.json"
+        sunbird_conf_path = "./config/db_conf_sunbird_pg12.json"
+        v5_conf_path = "./config/db_conf_v5_pg12.json"
+        
+        ready_to_test = True
     
     ## Test SQL queries with different configurations on PostgreSQL 15
-    default_conf_path = "./config/db_conf_default_pg15.json"
-    sunbird_conf_path = "./config/db_conf_sunbird_pg15.json"
-    v5_conf_path = "./config/db_conf_v5_pg15.json"
+    elif pg_major_version == 15:
+        default_conf_path = "./config/db_conf_default_pg15.json"
+        sunbird_conf_path = "./config/db_conf_sunbird_pg15.json"
+        v5_conf_path = "./config/db_conf_v5_pg15.json"
+        
+        ready_to_test = True
     
     ## 
     # Please check the configuration files when you are going to test SQL queries on PostgreSQL 12.
     # The database could be corrupted if you test using PostgreSQL 15 configurations on PostgreSQL 12.
     ##
-    run_test(False, s, iter_time, default_conf_path) # warm
-    run_test(False, s, iter_time, sunbird_conf_path) # warm
-    run_test(False, s, iter_time, v5_conf_path) # warm
-    run_test(True, s, iter_time, default_conf_path)  # cold
-    run_test(True, s, iter_time, sunbird_conf_path)  # cold
-    run_test(True, s, iter_time, v5_conf_path)  # cold
+    if ready_to_test:
+        run_test(False, s, iter_time, sunbird_conf_path) # warm
+        run_test(True, s, iter_time, sunbird_conf_path)  # cold
+        
+        # run_test(False, s, iter_time, v5_conf_path) # warm
+        # run_test(True, s, iter_time, v5_conf_path)  # cold
+        
+        # run_test(False, s, iter_time, default_conf_path) # warm
+        # run_test(True, s, iter_time, default_conf_path)  # cold
+    
+    else:
+        print("There might be an issue preventing the test from starting.")
+        
+    
     s.disconnect()
