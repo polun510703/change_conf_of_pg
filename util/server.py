@@ -140,7 +140,7 @@ class Server:
             print(f"Error: {e}")
             return None
         
-        return major_version
+        return int(major_version)
 
 
 

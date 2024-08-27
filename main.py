@@ -296,11 +296,10 @@ if __name__ == "__main__":
     iter_time = 11
     
     # check the version of PostgreSQL database you are going to test
-    temp_result = s.get_postgresql_major_version()
-    pg_major_version = int(temp_result)
+    pg_major_version = s.get_postgresql_major_version()
     ready_to_test = False
 
-    ## Test SQL queries with different configurations on PostgreSQL 12
+    # Test SQL queries with different configurations on PostgreSQL 12
     if pg_major_version == 12:
         default_conf_path = "./config/db_conf_default_pg12.json"
         sunbird_conf_path = "./config/db_conf_sunbird_pg12.json"
@@ -308,7 +307,7 @@ if __name__ == "__main__":
         
         ready_to_test = True
     
-    ## Test SQL queries with different configurations on PostgreSQL 15
+    # Test SQL queries with different configurations on PostgreSQL 15
     elif pg_major_version == 15:
         default_conf_path = "./config/db_conf_default_pg15.json"
         sunbird_conf_path = "./config/db_conf_sunbird_pg15.json"
