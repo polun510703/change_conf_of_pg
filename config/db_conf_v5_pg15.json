@@ -73,6 +73,7 @@
 	"geqo_threshold":["12"],
 	"gin_fuzzy_search_limit":["0"],
 	"gin_pending_list_limit":["4MB"],
+	"hash_mem_multiplier":["2"],
 	"hot_standby":["on"],
 	"hot_standby_feedback":["off"],
 	"huge_pages":["off"],
