@@ -1,0 +1,19 @@
+[postgresql]
+# host=192.168.78.161
+# host=140.113.30.134
+host=140.113.30.135
+database=raritan
+user=raritan
+password=Lab438!
+
+
+[server]
+# hostname=192.168.78.161
+# hostname=140.113.30.134
+hostname=140.113.30.135
+username=root
+# password=rNTUTstudent1!
+# password=02468OddManOut
+password=PlumP0wderR0X
+# password=ntutntut         // 192.168.78.161
+port=22
