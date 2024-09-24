@@ -230,8 +230,10 @@ def run_test(cold: bool, server: Server, iter_time=10, combination_path="./confi
                     server.start_record()
                 time.sleep(1)
 
-                # Measure the actual execution time using execute_query_with_timing
-                exec_time = server.execute_query_with_timing(v)
+                # Measure the actual execution time without EXPLAIN
+                
+                # exec_time = server.execute_query_with_timing(v)
+                exec_time = server.execute_query_with_local_config(v)
                 if exec_time is None:
                     print(f"Skipping iteration {i} for query {k} due to execution error.")
                     continue
@@ -283,8 +285,11 @@ if __name__ == "__main__":
     # Please check the configuration files when you are going to test SQL queries on PostgreSQL 12.
     # The database could be corrupted if you test using PostgreSQL 15 configurations on PostgreSQL 12.
     ##
+    
     run_test(False, s, iter_time, sunbird_conf_path) # warm
-    run_test(False, s, iter_time, v5_conf_path) # warm
     run_test(True, s, iter_time, sunbird_conf_path)  # cold
-    run_test(True, s, iter_time, v5_conf_path)  # cold
+    
+    # run_test(False, s, iter_time, v5_conf_path) # warm
+    # run_test(True, s, iter_time, v5_conf_path)  # cold
+    
     s.disconnect()

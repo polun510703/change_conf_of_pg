@@ -1,0 +1,357 @@
+SELECT
+  "TABLE_ITEMS"."item_id" AS "itemId",
+  "TABLE_LOCATIONS"."code" AS "code",
+  "TABLE_LOCATIONS"."dc_name" AS "dataCenterLocation.dcName",
+  "ITEM_CLASSES"."lkp_value" AS "classLkpValue",
+  "ITEM_SUBCLASSES"."lkp_value" AS "subclassLkpValue",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."item_status"
+    ELSE "ITEM_STATUS"."lkp_value"
+  END AS "statusLkpValue",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."substatus"
+    ELSE "ITEM_SUBSTATUS"."lku_value"
+  END AS "substatusLkuValue",
+  "TABLE_ITEMS"."item_name" AS "itemName",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."alias"
+    ELSE "TABLE_ITEMS"."item_alias"
+  END AS "itemAlias",
+  "TABLE_MAKES"."mfr_name" AS "mfrName",
+  "TABLE_MODELS"."model_name" AS "modelName",
+  "TABLE_MODELS"."part_number" AS "tiModelPartNumber",
+  "TABLE_MODELS"."description" AS "modelDescription",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."cabinet_name"
+    ELSE CASE
+      WHEN (
+        "TABLE_ITEMS"."status_lks_id" = 301
+        AND "TABLE_ITEMS"."available_date" IS NOT NULL
+      ) THEN null
+      WHEN (
+        "TABLE_ITEMS"."class_lks_id" IN (
+          6, 12
+        )
+        OR "TABLE_ITEMS"."subclass_lks_id" IN (
+          145, 146, 149, 131
+        )
+      ) THEN "TABLE_ITEMS"."item_name"
+      WHEN "TABLE_ITEMS"."subclass_lks_id" IN (
+        174, 175
+      ) THEN "ITEM_PARENT_ITEM"."item_name"
+      WHEN (
+        "TABLE_ITEMS"."class_lks_id" = 11
+        AND "TABLE_ITEMS"."subclass_lks_id" IS NULL
+      ) THEN "TABLE_ITEMS"."item_name"
+      WHEN "ITEM_PARENT_ITEM_MODEL"."mounting" = 'Suspended' THEN ("ITEM_PARENT_ITEM"."item_name" || ' (Suspended)')
+      ELSE "ITEM_PARENT_ITEM"."item_name"
+    END
+  END AS "cabinetName",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."u_position"
+    ELSE "TABLE_ITEMS"."uPosition"
+  END AS "uPosition",
+  CASE
+    WHEN "ITEM_CHASSIS_MODEL_SLOTS"."slot_label" IS NOT NULL THEN "ITEM_CHASSIS_MODEL_SLOTS"."slot_label"
+    ELSE to_char(CASE
+      WHEN "TABLE_ITEMS"."slot_position" > 0 THEN "TABLE_ITEMS"."slot_position"
+      ELSE null
+    END, 'FM999')
+  END AS "slotLabel",
+  "TABLE_ITEMS"."addresses" AS "ipAddresses",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."serial_number"
+    ELSE "TABLE_ITEM_DETAILS"."serial_number"
+  END AS "serialNumber",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."purpose"
+    ELSE "ITEM_TYPE"."lku_value"
+  END AS "purposeLkuValue",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."function"
+    ELSE "ITEM_FUNCTION"."lku_value"
+  END AS "functionLkuValue",
+  "ITEM_CONTACT"."login" AS "itemAdminUser.loginName",
+  "ITEM_CONTACT_TEAM"."name" AS "itemAdminUserGroup.userGroupName",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."department"
+    ELSE "ITEM_CUSTOMER"."lku_value"
+  END AS "departmentLkuValue",
+  "TABLE_MODELS"."mounting" AS "mounting",
+  "TABLE_MODELS"."form_factor" AS "formFactor",
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."asset_number"
+    ELSE "TABLE_ITEM_DETAILS"."asset_number"
+  END AS "assetNumber",
+  "TABLE_ITEMS"."raritan_tag" AS "raritanAssetTag",
+  "TABLE_MODELS"."ru_height" AS "ruHeight",
+  CAST("TABLE_MODELS"."weight" AS double precision) AS "weight",
+  "TABLE_PROJECTS"."project_number" AS "project.projectNumber",
+  "TABLE_ITEM_DETAILS"."po_number" AS "poNumber",
+  CAST("TABLE_ITEM_DETAILS"."purchase_price" AS double precision) AS "purchasePrice",
+  "TABLE_ITEM_DETAILS"."purchase_date" AS "purchaseDate",
+  "TABLE_ITEM_DETAILS"."install_date" AS "installDate",
+  "ITEM_SLA_PROFILE"."lku_value" AS "slaProfileLkuValue",
+  "TABLE_ITEM_DETAILS"."contract_number" AS "contractNumber",
+  CAST("TABLE_ITEM_DETAILS"."contract_amount" AS double precision) AS "contractAmount",
+  "TABLE_ITEM_DETAILS"."contract_begin_date" AS "contractBeginDate",
+  "TABLE_ITEM_DETAILS"."contract_expire_date" AS "contractExpireDate",
+  "TABLE_ITEM_DETAILS"."sys_created_by" AS "sysCreatedBy",
+  "TABLE_ITEMS"."itemRequestNumber" AS "itemRequestNumber",
+  "TABLE_ITEMS"."requestStage" AS "stageIdLkpValue",
+  "TABLE_ITEM_DETAILS"."sys_creation_date" AS "sysCreationDate",
+  "ITEM_ORIGIN"."lkp_value" AS "originLkpValue",
+  "TABLE_ITEM_DETAILS"."description" AS "description",
+  "TABLE_ITEMS"."location_reference" AS "locationReference",
+  CAST("TABLE_ITEM_DETAILS"."lastUpdatedOn" AS varchar) AS "lastUpdatedOn",
+  CASE
+    WHEN (
+      SELECT count("dct_audit_trail"."change_by")
+      FROM "dct_audit_trail"
+      WHERE (
+        "dct_audit_trail"."item_id" = "TABLE_ITEMS"."item_id"
+        AND "dct_audit_trail"."change_by" IS NOT NULL
+      )
+    ) > 0 THEN (
+      SELECT "dct_audit_trail"."change_by"
+      FROM "dct_audit_trail"
+      WHERE "dct_audit_trail"."item_id" = "TABLE_ITEMS"."item_id"
+      ORDER BY "dct_audit_trail"."change_date" DESC
+      FETCH NEXT 1 ROWS ONLY
+    )
+    ELSE "TABLE_ITEM_DETAILS"."sys_created_by"
+  END AS "lastUpdatedBy",
+  "TABLE_ITEMS"."tiIntegrationStatus" AS "integrationStatus",
+  "TABLE_ITEMS"."reconciled" AS "reconciled",
+  "TABLE_ITEMS"."cmdbIntegrationStatus" AS "cmdbIntegrationStatus",
+  "TABLE_ITEM_DETAILS"."planning_expiration_date" AS "planningExpirationDate",
+  CAST("TABLE_MODELS"."dim_h" AS double precision) AS "height",
+  CAST("TABLE_MODELS"."dim_w" AS double precision) AS "width",
+  CAST("TABLE_MODELS"."dim_d" AS double precision) AS "depth",
+  "TABLE_ITEMS"."valid" AS "valid",
+  "ITEM_STATUS"."isArchived" AS "isArchived"
+FROM (
+  SELECT
+    "dct_items".*,
+    CASE
+      WHEN (
+        "dct_items"."status_lks_id" = 301
+        AND "dct_items"."available_date" IS NOT NULL
+      ) THEN null
+      ELSE "dct_items"."u_position"
+    END AS "uPosition",
+    (
+      SELECT array_to_string(
+        ARRAY(
+          SELECT "tblipaddresses"."ipaddress"
+          FROM "dct_ports_data", "tblipteaming", "tblipaddresses"
+          WHERE (
+            "dct_items"."item_id" = "dct_ports_data"."item_id"
+            AND "dct_ports_data"."port_data_id" = "tblipteaming"."portid"
+            AND "tblipteaming"."ipaddressid" = "tblipaddresses"."id"
+          )
+        ),
+        ';'
+      ) AS "addresses"
+    ),
+    (
+      SELECT "dct_requests"."req_number"
+      FROM "dct_requests"
+      WHERE (
+        "dct_items"."item_id" = "dct_requests"."item_id"
+        AND "dct_requests"."type_lks_id" NOT IN (
+          1107, 1108, 1109
+        )
+        AND "dct_requests"."stage_lks_id" IN (
+          931, 932, 933, 934, 935, 936
+        )
+      )
+      FETCH NEXT 1 ROWS ONLY
+    ) AS "itemRequestNumber",
+    (
+      SELECT "dct_lks_data"."lkp_value"
+      FROM "dct_requests"
+        LEFT OUTER JOIN "dct_lks_data"
+          ON "dct_requests"."stage_lks_id" = "dct_lks_data"."lks_id"
+      WHERE (
+        "dct_items"."item_id" = "dct_requests"."item_id"
+        AND "dct_requests"."type_lks_id" NOT IN (
+          1107, 1108, 1109
+        )
+        AND "dct_requests"."stage_lks_id" IN (
+          931, 932, 933, 934, 935, 936
+        )
+      )
+      FETCH NEXT 1 ROWS ONLY
+    ) AS "requestStage",
+    (
+      SELECT status
+      FROM vew_nodes_ops
+        LEFT OUTER JOIN "dct_lks_data"
+          ON object_type_id = "dct_lks_data"."lkp_value_code"
+      WHERE (
+        "dct_items"."item_id" = object_id
+        AND "dct_lks_data"."lks_id" = "dct_items"."class_lks_id"
+      )
+    ) AS "tiIntegrationStatus",
+    (
+      SELECT coalesce(
+        (
+          SELECT "dct_lks_data"."lkp_value"
+          FROM "cmdb_integration_entity"
+            LEFT OUTER JOIN "dct_lks_data"
+              ON "cmdb_integration_entity"."cmdb_status_lks_id" = "dct_lks_data"."lks_id"
+          WHERE (
+            "dct_lks_data"."lkp_type_name" = 'INTEGRATION_STATUS'
+            AND "dct_items"."item_id" = "cmdb_integration_entity"."dcim_id"
+          )
+        ),
+        'In dcTrack Only'
+      )
+    ) AS "cmdbIntegrationStatus"
+  FROM "dct_items"
+  WHERE "dct_items"."item_id" IN (
+    2625770, 2625771, 2625772, 2625773, 2625774, 2625775, 2625776, 2625777, 2625778, 
+    2625779, 2625780, 2625781, 2625782, 2625783, 2625784, 2625785, 2623781, 2623777, 
+    2623778, 2623779, 2623780, 2623696, 2623697, 2623698, 2623699, 2620154, 2620155, 
+    2620156, 2620157, 2624432, 2624433, 2624442, 2624443, 2624452, 2624453, 2624462, 
+    2624463, 2624479, 2624480, 2620158, 2620159, 2620160, 2620161, 2621410, 2620162, 
+    2620163, 2620164, 2620165, 2620166, 2620167, 2620168, 2620169, 2620170, 2620171, 
+    2620172, 2620173, 2620174, 2620175, 2620176, 2620177, 2620178, 2620179, 2620180, 
+    2620181, 2620182, 2620183, 2620184, 2620185, 2620186, 2620187, 2620188, 2620189, 
+    2620190, 2620191, 2620192, 2620193, 2622498, 2622499, 2622500, 2622501, 2622502, 
+    2622503, 2622504, 2622505, 2622506, 2622507, 2622508, 2622509, 2622510, 2622511, 
+    2622512, 2622513, 2622682, 2622683, 2622684, 2622685, 2622686, 2622687, 2622688, 
+    2622689
+  )
+) AS "TABLE_ITEMS"
+  JOIN "dct_lks_data" AS "ITEM_CLASSES"
+    ON "TABLE_ITEMS"."class_lks_id" = "ITEM_CLASSES"."lks_id"
+  JOIN "dct_locations" AS "TABLE_LOCATIONS"
+    ON "TABLE_ITEMS"."location_id" = "TABLE_LOCATIONS"."location_id"
+  JOIN (
+    SELECT
+      "dct_lks_data".*,
+      CASE
+        WHEN "dct_lks_data"."lks_id" = 310 THEN 'TRUE'
+        ELSE 'FALSE'
+      END AS "isArchived"
+    FROM "dct_lks_data"
+  ) AS "ITEM_STATUS"
+    ON "TABLE_ITEMS"."status_lks_id" = "ITEM_STATUS"."lks_id"
+  LEFT OUTER JOIN "dct_lks_data" AS "ITEM_SUBCLASSES"
+    ON "TABLE_ITEMS"."subclass_lks_id" = "ITEM_SUBCLASSES"."lks_id"
+  LEFT OUTER JOIN "dct_models" AS "TABLE_MODELS"
+    ON "TABLE_ITEMS"."model_id" = "TABLE_MODELS"."model_id"
+  LEFT OUTER JOIN "dct_mfrs" AS "TABLE_MAKES"
+    ON "TABLE_MODELS"."mfr_id" = "TABLE_MAKES"."mfr_id"
+  LEFT OUTER JOIN "dct_items_it" AS "TABLE_IT_ITEMS"
+    ON "TABLE_ITEMS"."item_id" = "TABLE_IT_ITEMS"."item_id"
+  LEFT OUTER JOIN "dct_items" AS "TABLE_ITEMS_CHASSIS"
+    ON "TABLE_IT_ITEMS"."chassis_id" = "TABLE_ITEMS_CHASSIS"."item_id"
+  LEFT OUTER JOIN "dct_models_chassis" AS "ITEM_CHASSIS_MODEL"
+    ON (
+      "TABLE_ITEMS_CHASSIS"."model_id" = "ITEM_CHASSIS_MODEL"."model_id"
+      AND "TABLE_ITEMS"."facing_lks_id" = "ITEM_CHASSIS_MODEL"."face_lks_id"
+    )
+  LEFT OUTER JOIN "dct_models_chassis_slots" AS "ITEM_CHASSIS_MODEL_SLOTS"
+    ON (
+      "ITEM_CHASSIS_MODEL"."model_chassis_id" = "ITEM_CHASSIS_MODEL_SLOTS"."model_chassis_id"
+      AND "TABLE_ITEMS"."slot_position" = "ITEM_CHASSIS_MODEL_SLOTS"."slot_number"
+    )
+  LEFT OUTER JOIN (
+    SELECT
+      "dct_item_details".*,
+      coalesce("dct_item_details"."sys_update_date", "dct_item_details"."sys_creation_date") AS "lastUpdatedOn"
+    FROM "dct_item_details"
+  ) AS "TABLE_ITEM_DETAILS"
+    ON "TABLE_ITEMS"."item_detail_id" = "TABLE_ITEM_DETAILS"."item_detail_id"
+  LEFT OUTER JOIN "dct_lku_data" AS "ITEM_TYPE"
+    ON "TABLE_ITEM_DETAILS"."purpose_lku_id" = "ITEM_TYPE"."lku_id"
+  LEFT OUTER JOIN "dct_projects" AS "TABLE_PROJECTS"
+    ON "TABLE_ITEM_DETAILS"."project_id" = "TABLE_PROJECTS"."project_id"
+  LEFT OUTER JOIN "dct_lks_data" AS "ITEM_ORIGIN"
+    ON "TABLE_ITEM_DETAILS"."origin_lks_id" = "ITEM_ORIGIN"."lks_id"
+  LEFT OUTER JOIN "dct_lku_data" AS "ITEM_FUNCTION"
+    ON "TABLE_ITEM_DETAILS"."function_lku_id" = "ITEM_FUNCTION"."lku_id"
+  LEFT OUTER JOIN "dct_lku_data" AS "ITEM_SUBSTATUS"
+    ON "TABLE_ITEMS"."substatus_lku_id" = "ITEM_SUBSTATUS"."lku_id"
+  LEFT OUTER JOIN "dct_lku_data" AS "ITEM_SLA_PROFILE"
+    ON "TABLE_ITEM_DETAILS"."sla_profile_lku_id" = "ITEM_SLA_PROFILE"."lku_id"
+  LEFT OUTER JOIN "users" AS "ITEM_CONTACT"
+    ON "TABLE_ITEM_DETAILS"."item_admin_user_id" = "ITEM_CONTACT"."id"
+  LEFT OUTER JOIN "user_groups" AS "ITEM_CONTACT_TEAM"
+    ON "TABLE_ITEM_DETAILS"."item_admin_user_grp_id" = "ITEM_CONTACT_TEAM"."id"
+  LEFT OUTER JOIN "dct_lku_data" AS "ITEM_CUSTOMER"
+    ON "TABLE_ITEM_DETAILS"."department_lku_id" = "ITEM_CUSTOMER"."lku_id"
+  LEFT OUTER JOIN "dct_items" AS "ITEM_PARENT_ITEM"
+    ON (
+      (
+        "TABLE_ITEMS"."class_lks_id" IN (
+          1, 2, 3, 4, 5, 7, 14, 15, 16, 30
+        )
+        OR "TABLE_ITEMS"."subclass_lks_id" IN (
+          121, 122, 123, 175, 174
+        )
+      )
+      AND "TABLE_ITEMS"."parent_item_id" = "ITEM_PARENT_ITEM"."item_id"
+    )
+  LEFT OUTER JOIN "dct_models" AS "ITEM_PARENT_ITEM_MODEL"
+    ON "ITEM_PARENT_ITEM"."model_id" = "ITEM_PARENT_ITEM_MODEL"."model_id"
+  LEFT OUTER JOIN (
+    SELECT
+      "dct_cmdb_data_fields".*,
+      "dct_items"."valid",
+      "dct_item_details"."origin_lks_id"
+    FROM "dct_cmdb_data_fields"
+      JOIN "dct_items"
+        ON "dct_items"."item_id" = "dct_cmdb_data_fields"."item_id"
+      JOIN "dct_item_details"
+        ON "dct_items"."item_detail_id" = "dct_item_details"."item_detail_id"
+    WHERE (
+      "dct_cmdb_data_fields"."is_modified" = FALSE
+      AND "dct_item_details"."origin_lks_id" = 1366
+    )
+  ) AS "ITEM_CMDB_TICKET_FIELDS"
+    ON "TABLE_ITEMS"."item_id" = "ITEM_CMDB_TICKET_FIELDS"."item_id"
+WHERE (
+  (("TABLE_LOCATIONS"."dc_name") COLLATE "en_US") ILIKE '%C14%'
+  AND "ITEM_CLASSES"."lkp_value_code" IN (
+    1100, 1200, 1300, 1400, 1500, 2100, 2200, 2300, 2400, 2500, 5000, 5100, 2700, 
+    2600, 3500, 4100
+  )
+  AND "ITEM_STATUS"."lkp_value_code" IN (
+    5081, 5082, 5083, 5084, 5085, 5088, 5090, 5092
+  )
+)
+ORDER BY "TABLE_ITEMS"."item_name" ASC

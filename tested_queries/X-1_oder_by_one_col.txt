@@ -1,0 +1,75 @@
+SELECT "TABLE_ITEMS"."item_id"
+FROM "dct_items" AS "TABLE_ITEMS"
+  JOIN "dct_lks_data" AS "ITEM_CLASSES"
+    ON "TABLE_ITEMS"."class_lks_id" = "ITEM_CLASSES"."lks_id"
+  JOIN "dct_lks_data" AS "ITEM_STATUS"
+    ON "TABLE_ITEMS"."status_lks_id" = "ITEM_STATUS"."lks_id"
+  LEFT OUTER JOIN "dct_item_details" AS "TABLE_ITEM_DETAILS"
+    ON "TABLE_ITEMS"."item_detail_id" = "TABLE_ITEM_DETAILS"."item_detail_id"
+  LEFT OUTER JOIN "dct_items" AS "ITEM_PARENT_ITEM"
+    ON (
+      (
+        "TABLE_ITEMS"."class_lks_id" IN (
+          1, 2, 3, 4, 5, 7, 14, 15, 16
+        )
+        OR "TABLE_ITEMS"."subclass_lks_id" IN (
+          121, 122, 123, 175, 174
+        )
+      )
+      AND "TABLE_ITEMS"."parent_item_id" = "ITEM_PARENT_ITEM"."item_id"
+    )
+  LEFT OUTER JOIN "dct_models" AS "ITEM_PARENT_ITEM_MODEL"
+    ON "ITEM_PARENT_ITEM"."model_id" = "ITEM_PARENT_ITEM_MODEL"."model_id"
+  LEFT OUTER JOIN (
+    SELECT
+      "dct_cmdb_data_fields".*,
+      "dct_items"."valid",
+      "dct_item_details"."origin_lks_id"
+    FROM "dct_cmdb_data_fields"
+      JOIN "dct_items"
+        ON "dct_items"."item_id" = "dct_cmdb_data_fields"."item_id"
+      JOIN "dct_item_details"
+        ON "dct_items"."item_detail_id" = "dct_item_details"."item_detail_id"
+    WHERE (
+      "dct_cmdb_data_fields"."is_modified" = FALSE
+      AND "dct_item_details"."origin_lks_id" = 1366
+    )
+  ) AS "ITEM_CMDB_TICKET_FIELDS"
+    ON "TABLE_ITEMS"."item_id" = "ITEM_CMDB_TICKET_FIELDS"."item_id"
+WHERE (
+  "ITEM_CLASSES"."lkp_value_code" IN (
+    1100, 1200, 1300, 1400, 1500, 2100, 2200, 2300, 2400, 2500, 5000, 5100, 2700, 
+    2600, 3500
+  )
+  AND "ITEM_STATUS"."lkp_value_code" IN (
+    5081, 5082, 5083, 5084, 5085, 5088, 5090, 5092
+  )
+)
+ORDER BY
+  CASE
+    WHEN (
+      "ITEM_CMDB_TICKET_FIELDS"."valid" = FALSE
+      AND "ITEM_CMDB_TICKET_FIELDS"."origin_lks_id" = 1366
+    ) THEN "ITEM_CMDB_TICKET_FIELDS"."cabinet_name"
+    ELSE CASE
+      WHEN (
+        "TABLE_ITEMS"."class_lks_id" IN (
+          6, 12
+        )
+        OR "TABLE_ITEMS"."subclass_lks_id" IN (
+          145, 146, 149, 131
+        )
+      ) THEN "TABLE_ITEMS"."item_name"
+      WHEN "TABLE_ITEMS"."subclass_lks_id" IN (
+        174, 175
+      ) THEN "ITEM_PARENT_ITEM"."item_name"
+      WHEN (
+        "TABLE_ITEMS"."class_lks_id" = 11
+        AND "TABLE_ITEMS"."subclass_lks_id" IS NULL
+      ) THEN "TABLE_ITEMS"."item_name"
+      WHEN "ITEM_PARENT_ITEM_MODEL"."mounting" = 'Suspended' THEN ("ITEM_PARENT_ITEM"."item_name" || ' (Suspended)')
+      ELSE "ITEM_PARENT_ITEM"."item_name"
+    END
+  END ASC
+OFFSET 0 ROWS
+FETCH NEXT 100 ROWS ONLY
