@@ -57,7 +57,8 @@ class Server:
             return None
         
         try:
-            exec_time_ms = float(exec_time.split(":")[1].strip().replace(" ms", ""))
+            exec_time_ms = exec_time.split(":")[1].split(" ms")[0].strip()
+            exec_time_ms = float(exec_time_ms)
         except (IndexError, ValueError) as e:
             print(f"Error parsing execution time: {e}")
             return None
@@ -88,7 +89,8 @@ class Server:
                 return None
             
             try:
-                exec_time_ms = float(exec_time.split(":")[1].strip().replace(" ms", ""))
+                exec_time_ms = exec_time.split(":")[1].split(" ms")[0].strip()
+                exec_time_ms = float(exec_time_ms)
             except (IndexError, ValueError) as e:
                 print(f"Error parsing execution time: {e}")
                 return None

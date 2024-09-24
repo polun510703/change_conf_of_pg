@@ -232,8 +232,8 @@ def run_test(cold: bool, server: Server, iter_time=10, combination_path="./confi
 
                 # Measure the actual execution time without EXPLAIN
                 
-                # exec_time = server.execute_query_with_timing(v)
-                exec_time = server.execute_query_with_local_config(v)
+                exec_time = server.execute_query_with_timing(v)
+                # exec_time = server.execute_query_with_local_config(v)
                 if exec_time is None:
                     print(f"Skipping iteration {i} for query {k} due to execution error.")
                     continue
@@ -276,7 +276,7 @@ if __name__ == "__main__":
     s.connect()
     if s.is_connect == False:
         print("ssh connection failed...")
-    iter_time = 3
+    iter_time = 11
     
     sunbird_conf_path = "./config/db_conf_sunbird_pg15.json"
     v5_conf_path = "./config/db_conf_v5_pg15.json"
