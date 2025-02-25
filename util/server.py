@@ -2,6 +2,7 @@ import paramiko
 import time
 import util.config
 import shlex
+import re
 
 class Server:
     def __init__(self, server_config_path="../config/database.ini") -> None:
@@ -34,36 +35,38 @@ class Server:
         return stdin , stdout, stderr
 
     def execute_query_with_timing(self, query: str):
-        safe_query = shlex.quote(query)
-        cmd = f"psql -U raritan -c '\\timing' -c {safe_query}"
+
+        sql_file = "/tmp/temp_query.sql"
+
+        sftp = self.client.open_sftp()
+        with sftp.file(sql_file, "w") as f:
+            f.write(query)
+        sftp.close()
+
+        cmd = f"psql -U raritan -c '\\timing' -f {shlex.quote(sql_file)}"
         stdin, stdout, stderr = self.client.exec_command(cmd, get_pty=True)
+
         result = stdout.readlines()
         error = stderr.readlines()
-        
+
         if error:
             print(f"Error executing query: {error}")
             return None
-        
+
         print("Query execution result:", result)
-        
+
         exec_time = None
         for line in result:
-            if "Time:" in line:
-                exec_time = line.strip()
+            match = re.search(r'Time:\s+([\d\.]+)\s+ms', line)
+            if match:
+                exec_time = float(match.group(1))
                 break
-        
+
         if exec_time is None:
             print("Failed to retrieve execution time from query result.")
             return None
-        
-        try:
-            exec_time_ms = exec_time.split(":")[1].split(" ms")[0].strip()
-            exec_time_ms = float(exec_time_ms)
-        except (IndexError, ValueError) as e:
-            print(f"Error parsing execution time: {e}")
-            return None
-        
-        return exec_time_ms
+
+        return exec_time
 
     def execute_query_with_local_config(self, query: str):
             safe_query = shlex.quote(query)
