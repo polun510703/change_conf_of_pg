@@ -187,7 +187,7 @@ def get_timestamp():
         return int(result[0])
 
 
-def run_test(cold: bool, server: Server, iter_time=10, num_rows=10000, combination_path="./config/db_conf.json", slower=False):
+def run_test(cold: bool, server: Server, iter_time=10, num_rows=300000, batch_size=10, combination_path="./config/db_conf.json", slower=False):
     report_path = "./report/report_{}".format(time.strftime("%Y-%m-%d-%H%M%S"))
     if not os.path.exists(report_path):
         os.mkdir(report_path)
@@ -207,38 +207,43 @@ def run_test(cold: bool, server: Server, iter_time=10, num_rows=10000, combinati
         change_pg_conf(content)
         # wait_for_cpu()
         
-        insert_sql = generate_insert_statements(num_rows)
-        
         total_time = 0
         report_dct = {
             "exec_time": [],
-            "plan_time": [],
             "total_time": [],
             "timestamp": []
         }
+        
+        num_batches = num_rows // batch_size
         
         for i in range(iter_time):
             if cold:
                 clean_cache()
                 wait_for_cpu()
             
-            conn = Connection(params=params, query=insert_sql)
+            conn = Connection(params=params, query="")
             report_dct["timestamp"].append(get_timestamp())
             
             if slower:
                 server.start_record()
-            time.sleep(1)
             
-            explain = conn.get_explain_of_query()
-            explain_json = json.dumps(explain)
+            start_time = time.time()
+            with conn.connect.cursor() as cur:
+                for batch in range(num_batches):
+                    batch_insert_sql = generate_insert_statements(batch_size, start_id=batch * batch_size + 1)
+                    # print("Generated SQL:\n", batch_insert_sql)
+                    cur.execute(batch_insert_sql)
+            conn.connect.commit()
+            end_time = time.time()
             
-            print("exec:", explain['Execution Time'], "ms plan:", explain['Planning Time'], "ms")
-            report_dct["exec_time"].append(int(explain['Execution Time']))
-            report_dct["plan_time"].append(int(explain['Planning Time']))
-            report_dct["total_time"].append(int(explain['Execution Time']) + int(explain['Planning Time']))
+            exec_time = (end_time - start_time) * 1000
+            
+            print("exec:", exec_time, "ms")
+            report_dct["exec_time"].append(int(exec_time))
+            report_dct["total_time"].append(int(exec_time))
             
             if i != 0:
-                total_time += int(explain['Execution Time']) + int(explain['Planning Time'])
+                total_time += int(exec_time)
             
             if slower:
                 server.stop_record(report_path + "/bcc_insert_" + str(i) + ".csv")
@@ -246,7 +251,7 @@ def run_test(cold: bool, server: Server, iter_time=10, num_rows=10000, combinati
         if iter_time > 1:
             total_time /= (iter_time - 1)
         
-        folder_name = "insert_test_{}_{}".format(num_rows, int(total_time))
+        folder_name = "insert_{}_rows_{}".format(num_rows, int(total_time))
         if cold:
             folder_name += "_Cold"
         else:
@@ -277,7 +282,10 @@ if __name__ == "__main__":
     iter_time = 2
     
     # the number of rows to insert
-    num_rows = 100
+    num_rows = 300000
+    
+    # the number of rows to insert per batch
+    batch_size = 10
     
     # check the version of PostgreSQL database you are going to test
     pg_major_version = s.get_postgresql_major_version()
@@ -304,14 +312,7 @@ if __name__ == "__main__":
     # The database could be corrupted if you test using PostgreSQL 15 configurations on PostgreSQL 12.
     ##
     if ready_to_test:
-        run_test(False, s, iter_time, num_rows, sunbird_conf_path) # warm
-        # run_test(True, s, iter_time, sunbird_conf_path)  # cold
-        
-        # run_test(False, s, iter_time, v5_conf_path) # warm
-        # run_test(True, s, iter_time, v5_conf_path)  # cold
-        
-        # run_test(False, s, iter_time, default_conf_path) # warm
-        # run_test(True, s, iter_time, default_conf_path)  # cold
+        run_test(False, s, iter_time, num_rows, batch_size, sunbird_conf_path) # warm
     
     else:
         print("There might be an issue preventing the test from starting.")
