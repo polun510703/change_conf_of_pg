@@ -11,6 +11,7 @@ from util.connection import send_query, get_pg_config, send_query_explain, Conne
 from util.server import Server
 from util.generate_insert_sql import generate_insert_statements
 
+
 def generate_conf_json():
     query = "SHOW all;"
     conf_path = "./config/database.ini"
@@ -214,12 +215,16 @@ def run_test(cold: bool, server: Server, iter_time=10, num_rows=300000, batch_si
             "timestamp": []
         }
         
+        start_item_id = 2667044
         num_batches = num_rows // batch_size
         
         for i in range(iter_time):
             
             conn = Connection(params=params, query="")
+            
+            # autocommit
             conn.connect.autocommit = False
+            
             report_dct["timestamp"].append(get_timestamp())
             
             if slower:
@@ -228,24 +233,19 @@ def run_test(cold: bool, server: Server, iter_time=10, num_rows=300000, batch_si
             start_time = time.time()
             
             try:
-                for batch in range(num_batches):
-                    with conn.connect.cursor() as cur:
-                        batch_insert_sql = generate_insert_statements(batch_size, start_id=batch * batch_size + 1)
+                with conn.connect.cursor() as cur:
+                    for batch in range(num_batches):
+                        batch_start_id = start_item_id + batch * batch_size
+                        batch_insert_sql = generate_insert_statements(batch_size, batch_start_id)
                         # print("Generated SQL:\n", batch_insert_sql)
+                        print(f"Inserting row #{batch}")
                         cur.execute(batch_insert_sql)
-                    
-                    if (batch + 1) % 5000 == 0:
-                        conn.connect.commit()
-                        print(f"Committed after {batch_size * 5000} rows")
-                        
-                        conn.connect.close()
-                        conn = Connection(params=params, query="")
-                        conn.connect.autocommit = False
+                        print(f"Insert row #{batch} successfully\n")
                         
                 conn.connect.commit()
             
             except Exception as e:
-                print(f"error: {e}")
+                print(f"Unexpected error: {e}")
             
             end_time = time.time()
             
@@ -295,7 +295,7 @@ if __name__ == "__main__":
     iter_time = 2
     
     # the number of rows to insert
-    num_rows = 10000
+    num_rows = 299000
     
     # the number of rows to insert per batch
     batch_size = 1
