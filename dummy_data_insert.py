@@ -217,23 +217,36 @@ def run_test(cold: bool, server: Server, iter_time=10, num_rows=300000, batch_si
         num_batches = num_rows // batch_size
         
         for i in range(iter_time):
-            if cold:
-                clean_cache()
-                wait_for_cpu()
             
             conn = Connection(params=params, query="")
+            conn.connect.autocommit = False
             report_dct["timestamp"].append(get_timestamp())
             
             if slower:
                 server.start_record()
             
             start_time = time.time()
-            with conn.connect.cursor() as cur:
+            
+            try:
                 for batch in range(num_batches):
-                    batch_insert_sql = generate_insert_statements(batch_size, start_id=batch * batch_size + 1)
-                    # print("Generated SQL:\n", batch_insert_sql)
-                    cur.execute(batch_insert_sql)
-            conn.connect.commit()
+                    with conn.connect.cursor() as cur:
+                        batch_insert_sql = generate_insert_statements(batch_size, start_id=batch * batch_size + 1)
+                        # print("Generated SQL:\n", batch_insert_sql)
+                        cur.execute(batch_insert_sql)
+                    
+                    if (batch + 1) % 5000 == 0:
+                        conn.connect.commit()
+                        print(f"Committed after {batch_size * 5000} rows")
+                        
+                        conn.connect.close()
+                        conn = Connection(params=params, query="")
+                        conn.connect.autocommit = False
+                        
+                conn.connect.commit()
+            
+            except Exception as e:
+                print(f"error: {e}")
+            
             end_time = time.time()
             
             exec_time = (end_time - start_time) * 1000
@@ -282,10 +295,10 @@ if __name__ == "__main__":
     iter_time = 2
     
     # the number of rows to insert
-    num_rows = 300000
+    num_rows = 10000
     
     # the number of rows to insert per batch
-    batch_size = 10
+    batch_size = 1
     
     # check the version of PostgreSQL database you are going to test
     pg_major_version = s.get_postgresql_major_version()
