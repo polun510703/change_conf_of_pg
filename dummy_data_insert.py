@@ -295,7 +295,7 @@ if __name__ == "__main__":
     iter_time = 2
     
     # the number of rows to insert
-    num_rows = 299000
+    num_rows = 300000
     
     # the number of rows to insert per batch
     batch_size = 1
