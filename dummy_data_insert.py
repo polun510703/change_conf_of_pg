@@ -11,6 +11,7 @@ from util.connection import send_query, get_pg_config, send_query_explain, Conne
 from util.server import Server
 from util.generate_insert_sql import generate_insert_statements
 
+
 def generate_conf_json():
     query = "SHOW all;"
     conf_path = "./config/database.ini"
@@ -214,26 +215,38 @@ def run_test(cold: bool, server: Server, iter_time=10, num_rows=300000, batch_si
             "timestamp": []
         }
         
+        start_item_id = 2667044
         num_batches = num_rows // batch_size
         
         for i in range(iter_time):
-            if cold:
-                clean_cache()
-                wait_for_cpu()
             
             conn = Connection(params=params, query="")
+            
+            # autocommit
+            conn.connect.autocommit = False
+            
             report_dct["timestamp"].append(get_timestamp())
             
             if slower:
                 server.start_record()
             
             start_time = time.time()
-            with conn.connect.cursor() as cur:
-                for batch in range(num_batches):
-                    batch_insert_sql = generate_insert_statements(batch_size, start_id=batch * batch_size + 1)
-                    # print("Generated SQL:\n", batch_insert_sql)
-                    cur.execute(batch_insert_sql)
-            conn.connect.commit()
+            
+            try:
+                with conn.connect.cursor() as cur:
+                    for batch in range(num_batches):
+                        batch_start_id = start_item_id + batch * batch_size
+                        batch_insert_sql = generate_insert_statements(batch_size, batch_start_id)
+                        # print("Generated SQL:\n", batch_insert_sql)
+                        print(f"Inserting row #{batch}")
+                        cur.execute(batch_insert_sql)
+                        print(f"Insert row #{batch} successfully\n")
+                        
+                conn.connect.commit()
+            
+            except Exception as e:
+                print(f"Unexpected error: {e}")
+            
             end_time = time.time()
             
             exec_time = (end_time - start_time) * 1000
@@ -285,7 +298,7 @@ if __name__ == "__main__":
     num_rows = 300000
     
     # the number of rows to insert per batch
-    batch_size = 10
+    batch_size = 1
     
     # check the version of PostgreSQL database you are going to test
     pg_major_version = s.get_postgresql_major_version()
