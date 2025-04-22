@@ -388,6 +388,7 @@ if __name__ == "__main__":
     if ready_to_test:
         run_test(False, s, iter_time, sunbird_conf_path) # warm
         
+        # line_count is the number of lines to tail from the log file
         tail_remote_log_and_output_path_cost(
             line_count=5000,
             remote_log_dir="/var/lib/pgsql/data/log",
