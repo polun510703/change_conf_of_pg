@@ -5,6 +5,26 @@ import pandas as pd
 from openpyxl import load_workbook
 
 ##
+#   Delete the current day's PostgreSQL log file on the server.
+#   Assumes logs follow the pattern: postgresql-<Day>.log
+##
+def delete_today_log_file(client):
+    # Get current day (e.g., Mon, Tue, Wed...)
+    stdin, stdout, stderr = client.exec_command("date +%a", get_pty=True)
+    day_of_week = stdout.read().decode("utf-8", errors="replace").strip()
+
+    log_path = f"/var/lib/pgsql/data/log/postgresql-{day_of_week}.log"
+    delete_cmd = f"rm -f {log_path}"
+
+    print(f"[INFO] Deleting log file: {log_path}")
+    stdin, stdout, stderr = client.exec_command(delete_cmd, get_pty=True)
+    err = stderr.read().decode("utf-8", errors="replace")
+    if err:
+        print(f"[WARNING] Error when deleting log file: {err}")
+    else:
+        print("[INFO] Log file deleted successfully.")
+
+##
 #   Recursively traverse the plan tree.
 #   If the node contains "Relation Name" and "Alias" fields,
 #   it represents a base relation. Add its alias to aliases_set.

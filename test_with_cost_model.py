@@ -9,7 +9,7 @@ import pandas as pd
 from util.config import db_config
 from util.connection import send_query, get_pg_config, send_query_explain, Connection
 from util.server import Server
-from util.path_cost import output_path_cost_info, convert_pathcost_file_to_excel
+from util.path_cost import output_path_cost_info, convert_pathcost_file_to_excel, delete_today_log_file
 
 def generate_conf_json():
     query = "SHOW all;"
@@ -67,26 +67,40 @@ def restart_postgresql():
         params = db_config(file_path="./config/database.ini", section='server')
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         client.connect(**params)
-        
-        cmd = (
-            "sudo systemctl stop postgresql; "
-            "sudo -i -u postgres /usr/local/pgsql_mod/bin/pg_ctl -D /var/lib/pgsql/data restart"
+
+        # Step 1: Stop original PostgreSQL service
+        stop_cmd = "sudo systemctl stop postgresql"
+        print("[INFO] Stopping PostgreSQL...")
+        stdin, stdout, stderr = client.exec_command(stop_cmd, get_pty=True)
+        result = stdout.read().decode("utf-8", errors="replace")
+        error = stderr.read().decode("utf-8", errors="replace")
+        print(f"Stop result:\n{result}")
+        if error:
+            print(f"Stop error:\n{error}")
+
+        # Step 2: Delete today's log file
+        delete_today_log_file(client)
+
+        # Step 3: Restart modified PostgreSQL service
+        cmd = ("sudo -i -u postgres /usr/local/pgsql_mod/bin/pg_ctl -D /var/lib/pgsql/data stop; "
+               "sudo -i -u postgres /usr/local/pgsql_mod/bin/pg_ctl -D /var/lib/pgsql/data start"
         )
-        
-        stdin , stdout, stderr = client.exec_command(cmd, get_pty=True)
+        print("[INFO] Restarting PostgreSQL...")
+        stdin, stdout, stderr = client.exec_command(cmd, get_pty=True)
         result = stdout.readlines()
         error = stderr.readlines()
-        print("result : {0} \n error : {1}".format(result, error))
+        print("Restart result:\n", result)
+        print("Restart error:\n", error)
+
         if len(error) > 0:
-            # systemctl status postgresql.service
-            stdin , stdout, stderr = client.exec_command("systemctl status postgresql.service", get_pty=True)
+            print("[WARNING] Checking PostgreSQL status...")
+            stdin, stdout, stderr = client.exec_command("systemctl status postgresql.service", get_pty=True)
             result = stdout.readlines()
-            print("check : \n ")
-            for i in result:
-                print(i)
-            result = [] # clean the result buffer
+            for line in result:
+                print(line, end='')
             error = stderr.readlines()
-            print("result : {0} \n error : {1}".format(result, error))
+            if error:
+                print("Status error:\n", error)
 
 
 def change_pg_conf(content):
@@ -215,7 +229,7 @@ def run_test(cold:bool, server:Server, iter_time=10, combination_path="./config/
             conf_alter+="{0}='{1}'\n".format(k, v)
         content+=conf_alter
         change_pg_conf(content)
-        wait_for_cpu()
+        # wait_for_cpu()
         # start sending query
         # need to store explain and conf
         explain = ""
@@ -264,8 +278,7 @@ def run_test(cold:bool, server:Server, iter_time=10, combination_path="./config/
                     plan_file.writelines(str(explain_json))
                 
                 # open the path_analysis folder and store the explain json file
-                if i == 1:
-                    with open("./path_analysis/"+str(k.split('.')[0])+".json", "w") as plan_file:
+                with open("./path_analysis/"+str(k.split('.')[0])+".json", "w") as plan_file:
                         plan_file.writelines(str(explain_json))
                 
                 # open the folder and store the bcc report (ext4slower)
@@ -301,10 +314,9 @@ def run_test(cold:bool, server:Server, iter_time=10, combination_path="./config/
             # df_sorted.to_csv(small_report_path+"/report2.csv")
             
 ##
-#   connect to the remote server and tail the log file
-#   and output the cost of the paths to a local file
-#   by default, it will tail the last 5000 lines of the log file
-#   make sure the directory and file name of the log file is correct
+#   Connect to remote server and extract path cost info.
+#   - If line_count >= 0: tail last N lines from remote log file
+#   - If line_count == -1: download the entire remote log file
 ##
 def tail_remote_log_and_output_path_cost(
     line_count,
@@ -312,48 +324,57 @@ def tail_remote_log_and_output_path_cost(
     local_out_dir=""
 ):
     os.makedirs(local_out_dir, exist_ok=True)
-    # load the server configuration from the database.ini file
+
+    # Load server connection info
     params = db_config(file_path="./config/database.ini", section='server')
 
-    # establish the connection
+    # Setup SSH & SFTP
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.connect(**params)
-    
+    sftp = client.open_sftp()
+
     try:
-        # get the current day of the week
+        # Get day of week
         stdin, stdout, stderr = client.exec_command("date +%a", get_pty=True)
-        day_of_week = stdout.read().decode('utf-8', errors='replace').strip()
-        
-        # construct the path to the log file
+        day_of_week = stdout.read().decode("utf-8", errors="replace").strip()
+
         remote_log_path = f"{remote_log_dir}/postgresql-{day_of_week}.log"
-        
-        # execute the tail command to get the last n lines of the log file
-        cmd = f"tail -n {line_count} {remote_log_path}"
-        print(f"Executing: {cmd}")
-        stdin, stdout, stderr = client.exec_command(cmd, get_pty=True)
-        
-        # read the output and error data
-        out_data = stdout.read().decode('utf-8', errors='replace')
-        err_data = stderr.read().decode('utf-8', errors='replace')
+        local_log_path = os.path.join(local_out_dir, f"postgresql-{day_of_week}.log")
 
-        if err_data:
-            print("[tail_remote_log] stderr:", err_data)
+        if line_count == -1:
+            # Full mode: download entire log file
+            print(f"[INFO] Downloading full log file from: {remote_log_path}")
+            sftp.get(remote_log_path, local_log_path)
+            print(f"[INFO] Full log downloaded to: {local_log_path}")
 
-        # construct the path to the local output file
-        local_out_path = f"{local_out_dir}/postgresql-{day_of_week}.log"
-        
-        # write the output data to a local file
-        with open(local_out_path, "w", encoding="utf-8") as f:
-            f.write(out_data)
-        
-        print(f"Done. The last {line_count} lines from remote log saved to {local_out_path}")
-        
+        elif line_count >= 0:
+            # Tail mode: get last N lines
+            cmd = f"tail -n {line_count} {remote_log_path}"
+            print(f"[INFO] Executing: {cmd}")
+            stdin, stdout, stderr = client.exec_command(cmd, get_pty=True)
+
+            out_data = stdout.read().decode("utf-8", errors="replace")
+            err_data = stderr.read().decode("utf-8", errors="replace")
+            if err_data:
+                print("[ERROR] stderr from tail:", err_data)
+
+            with open(local_log_path, "w", encoding="utf-8") as f:
+                f.write(out_data)
+
+            print(f"[INFO] Last {line_count} lines saved to {local_log_path}")
+
+        else:
+            print(f"[ERROR] Invalid line_count: {line_count}. Must be -1 (full) or >= 0 (tail).")
+            return
+
+        # Process the downloaded log
         output_file = output_path_cost_info(local_out_dir, f"postgresql-{day_of_week}.log")
-        
-        convert_pathcost_file_to_excel(output_file, f"{local_out_dir}/path_cost_info.xlsx")
+        if output_file:
+            convert_pathcost_file_to_excel(output_file, os.path.join(local_out_dir, "path_cost_info.xlsx"))
 
     finally:
+        sftp.close()
         client.close()
 
 if __name__ == "__main__":
@@ -363,7 +384,7 @@ if __name__ == "__main__":
         print("ssh connection failed...")
     
     # the number of test iterations   
-    iter_time = 2
+    iter_time = 1
     
     # check the version of PostgreSQL database you are going to test
     pg_major_version = s.get_postgresql_major_version()
@@ -392,7 +413,7 @@ if __name__ == "__main__":
         # remote_log_dir is the directory of the log file on the remote server
         # local_out_dir is the directory to save the output file on the local machine
         tail_remote_log_and_output_path_cost(
-            line_count=5000,
+            line_count=-1,
             remote_log_dir="/var/lib/pgsql/data/log",
             local_out_dir="./path_analysis"
         )
