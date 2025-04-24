@@ -9,7 +9,7 @@ import pandas as pd
 from util.config import db_config
 from util.connection import send_query, get_pg_config, send_query_explain, Connection
 from util.server import Server
-from util.path_cost import output_path_cost_info, convert_pathcost_file_to_excel
+from util.path_cost import output_path_cost_info, convert_pathcost_file_to_excel, delete_today_log_file
 
 def generate_conf_json():
     query = "SHOW all;"
@@ -67,26 +67,40 @@ def restart_postgresql():
         params = db_config(file_path="./config/database.ini", section='server')
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         client.connect(**params)
-        
-        cmd = (
-            "sudo systemctl stop postgresql; "
-            "sudo -i -u postgres /usr/local/pgsql_mod/bin/pg_ctl -D /var/lib/pgsql/data restart"
+
+        # Step 1: Stop original PostgreSQL service
+        stop_cmd = "sudo systemctl stop postgresql"
+        print("[INFO] Stopping PostgreSQL...")
+        stdin, stdout, stderr = client.exec_command(stop_cmd, get_pty=True)
+        result = stdout.read().decode("utf-8", errors="replace")
+        error = stderr.read().decode("utf-8", errors="replace")
+        print(f"Stop result:\n{result}")
+        if error:
+            print(f"Stop error:\n{error}")
+
+        # Step 2: Delete today's log file
+        delete_today_log_file(client)
+
+        # Step 3: Restart modified PostgreSQL service
+        cmd = ("sudo -i -u postgres /usr/local/pgsql_mod/bin/pg_ctl -D /var/lib/pgsql/data stop; "
+               "sudo -i -u postgres /usr/local/pgsql_mod/bin/pg_ctl -D /var/lib/pgsql/data start"
         )
-        
-        stdin , stdout, stderr = client.exec_command(cmd, get_pty=True)
+        print("[INFO] Restarting PostgreSQL...")
+        stdin, stdout, stderr = client.exec_command(cmd, get_pty=True)
         result = stdout.readlines()
         error = stderr.readlines()
-        print("result : {0} \n error : {1}".format(result, error))
+        print("Restart result:\n", result)
+        print("Restart error:\n", error)
+
         if len(error) > 0:
-            # systemctl status postgresql.service
-            stdin , stdout, stderr = client.exec_command("systemctl status postgresql.service", get_pty=True)
+            print("[WARNING] Checking PostgreSQL status...")
+            stdin, stdout, stderr = client.exec_command("systemctl status postgresql.service", get_pty=True)
             result = stdout.readlines()
-            print("check : \n ")
-            for i in result:
-                print(i)
-            result = [] # clean the result buffer
+            for line in result:
+                print(line, end='')
             error = stderr.readlines()
-            print("result : {0} \n error : {1}".format(result, error))
+            if error:
+                print("Status error:\n", error)
 
 
 def change_pg_conf(content):
