@@ -5,11 +5,13 @@ import json
 import itertools
 import paramiko
 import time
+import shutil
+import fnmatch
 import pandas as pd
 from util.config import db_config
 from util.connection import send_query, get_pg_config, send_query_explain, Connection
 from util.server import Server
-from util.path_cost import output_path_cost_info, convert_pathcost_file_to_excel, delete_today_log_file
+from util.path_cost import output_path_cost_info, delete_today_log_file, make_unique_dir
 
 def generate_conf_json():
     query = "SHOW all;"
@@ -313,11 +315,7 @@ def run_test(cold:bool, server:Server, iter_time=10, combination_path="./config/
             df.to_csv(small_report_path+"/report.csv")
             # df_sorted.to_csv(small_report_path+"/report2.csv")
             
-##
-#   Connect to remote server and extract path cost info.
-#   - If line_count >= 0: tail last N lines from remote log file
-#   - If line_count == -1: download the entire remote log file
-##
+
 def tail_remote_log_and_output_path_cost(
     line_count,
     remote_log_dir="",
@@ -325,57 +323,92 @@ def tail_remote_log_and_output_path_cost(
 ):
     os.makedirs(local_out_dir, exist_ok=True)
 
-    # Load server connection info
+    # SSH/SFTP connection
     params = db_config(file_path="./config/database.ini", section='server')
-
-    # Setup SSH & SFTP
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.connect(**params)
     sftp = client.open_sftp()
 
     try:
-        # Get day of week
+        # Determine the day of the week for the log file name
         stdin, stdout, stderr = client.exec_command("date +%a", get_pty=True)
         day_of_week = stdout.read().decode("utf-8", errors="replace").strip()
 
         remote_log_path = f"{remote_log_dir}/postgresql-{day_of_week}.log"
-        local_log_path = os.path.join(local_out_dir, f"postgresql-{day_of_week}.log")
+        local_log_path  = os.path.join(local_out_dir,
+                                       f"postgresql-{day_of_week}.log")
 
+        # default: -1 means download the whole log file
+        # if line_count is not 0, it will tail the log file
         if line_count == -1:
-            # Full mode: download entire log file
-            print(f"[INFO] Downloading full log file from: {remote_log_path}")
-            sftp.get(remote_log_path, local_log_path)
-            print(f"[INFO] Full log downloaded to: {local_log_path}")
-
-        elif line_count >= 0:
-            # Tail mode: get last N lines
+            print(f"[INFO] Downloading full log: {remote_log_path}")
+            try:
+                sftp.get(remote_log_path, local_log_path)
+            except FileNotFoundError:
+                print(f"[ERROR] Remote log not found: {remote_log_path}")
+                return
+        else:
             cmd = f"tail -n {line_count} {remote_log_path}"
-            print(f"[INFO] Executing: {cmd}")
+            print(f"[INFO] Executing on server: {cmd}")
             stdin, stdout, stderr = client.exec_command(cmd, get_pty=True)
-
             out_data = stdout.read().decode("utf-8", errors="replace")
             err_data = stderr.read().decode("utf-8", errors="replace")
             if err_data:
-                print("[ERROR] stderr from tail:", err_data)
-
+                print(f"[ERROR] stderr from tail: {err_data}")
+                return
             with open(local_log_path, "w", encoding="utf-8") as f:
                 f.write(out_data)
 
-            print(f"[INFO] Last {line_count} lines saved to {local_log_path}")
-
-        else:
-            print(f"[ERROR] Invalid line_count: {line_count}. Must be -1 (full) or >= 0 (tail).")
+        # Check if the log file was downloaded successfully
+        if not os.path.exists(local_log_path):
+            print(f"[ERROR] Local log not found: {local_log_path}")
             return
 
-        # Process the downloaded log
-        output_file = output_path_cost_info(local_out_dir, f"postgresql-{day_of_week}.log")
-        if output_file:
-            convert_pathcost_file_to_excel(output_file, os.path.join(local_out_dir, "path_cost_info.xlsx"))
+        # Move .json files to subdirectories
+        # and copy the log file with a new name
+        json_files = [f for f in os.listdir(local_out_dir)
+                      if f.endswith(".json")]
+
+        if not json_files:
+            print("[WARNING] No .json files found to analyse.")
+            return
+
+        for jf in json_files:
+            sql_name   = os.path.splitext(jf)[0]
+            target_dir = make_unique_dir(
+                os.path.join(local_out_dir, sql_name))
+
+            # move the .json file to the new directory
+            shutil.move(os.path.join(local_out_dir, jf),
+                        os.path.join(target_dir, jf))
+
+            # copy the log file to the new directory
+            renamed_log = f"{sql_name}_postgresql-{day_of_week}.log"
+            shutil.copyfile(local_log_path,
+                            os.path.join(target_dir, renamed_log))
+
+            # analyse the log file and output path cost info
+            output_path_cost_info(
+                target_dir,
+                renamed_log,
+                keep_in_place=True
+            )
+        
+        # Remove the original log file if it exists
+        for fname in os.listdir(local_out_dir):
+            if fnmatch.fnmatch(fname, "postgresql-*.log"):
+                target = os.path.join(local_out_dir, fname)
+                try:
+                    os.remove(target)
+                    print(f"[INFO] Removed original log file: {target}")
+                except OSError as e:
+                    print(f"[WARNING] Could not remove {target}: {e}")
 
     finally:
         sftp.close()
         client.close()
+
 
 if __name__ == "__main__":
     s = Server('./config/database.ini')

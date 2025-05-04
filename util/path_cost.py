@@ -1,12 +1,37 @@
 import os
 import json
 import re
+import shutil
 import pandas as pd
 from openpyxl import load_workbook
 
+##
+#  Create a unique directory by appending _1, _2, ... to the base path.
+##
+def make_unique_dir(base_path: str) -> str:
+    if not os.path.exists(base_path):
+        os.makedirs(base_path, exist_ok=True)
+        return base_path
+
+    idx = 1
+    while True:
+        candidate = f"{base_path}_{idx}"
+        if not os.path.exists(candidate):
+            os.makedirs(candidate)
+            return candidate
+        idx += 1
+
+##
+#   Regularity of alias:
+#     • <table>_partN    → <table>
+#     • <table>_pN       → <table>
+#     • <table>_<digits> → <table>
+#     • Others remain unchanged
+##
 def get_log_search_alias(alias):
-    if alias.startswith("TABLE_ITEMS_"):
-        return "TABLE_ITEMS"
+    m = re.match(r"^([A-Za-z0-9_]+?)_(?:part|p)?\d+$", alias)
+    if m:
+        return m.group(1)
     return alias
 
 ##
@@ -80,7 +105,6 @@ def extract_path_info_from_log(log_path, needed_log_aliases):
 
     current_log_alias = None
     collecting = False
-    skip_until_next_block = False
 
     pattern = re.compile(r'^RELOPTINFO \(([^\)]*)\):')
 
@@ -89,112 +113,149 @@ def extract_path_info_from_log(log_path, needed_log_aliases):
         if match:
             collecting = False
             current_log_alias = None
-            skip_until_next_block = False
 
             inside = match.group(1).strip()
             inside_aliases = inside.split()
 
             for inside_alias in inside_aliases:
-                if inside_alias in needed_log_aliases:
-                    current_log_alias = inside_alias
+                norm_alias = get_log_search_alias(inside_alias)
+                if norm_alias in needed_log_aliases:
+                    current_log_alias = norm_alias
                     collecting = True
                     alias_path_map[current_log_alias].append(line.rstrip('\n'))
                     break
 
-        else:
-            if skip_until_next_block:
-                continue
-
-            if "cheapest parameterized paths" in line:
-                skip_until_next_block = True
-                continue
-
-            if collecting and current_log_alias:
-                alias_path_map[current_log_alias].append(line.rstrip('\n'))
+        elif collecting and current_log_alias:
+            alias_path_map[current_log_alias].append(line.rstrip('\n'))
 
     return alias_path_map
 
-
-def output_path_cost_info(folder_path, log_filename):
-    folder_path = "./path_analysis" 
+##
+#   Output path cost information to a text file and convert it to Excel.
+##
+def output_path_cost_info(folder_path: str,
+                          log_filename: str,
+                          keep_in_place: bool = False):
+    # If keep_in_place is True, the log file should already be in the folder_path.
+    # Otherwise, it will be copied to the new directory.
     log_path = os.path.join(folder_path, log_filename)
-
-    json_files = [f for f in os.listdir(folder_path) if f.endswith(".json")]
-
     if not os.path.exists(log_path):
         print(f"[ERROR] Unable to find log file: {log_path}")
         return
 
+    json_files = [f for f in os.listdir(folder_path) if f.endswith(".json")]
+    if not json_files:
+        print(f"[WARNING] No .json files in {folder_path}")
+        return
+
+    # Retrieve all aliases from the log file
+    all_aliases_from_log = set()
+    with open(log_path, "r", encoding="utf-8") as lf:
+        for line in lf:
+            m = re.match(r"^RELOPTINFO \(([^\)]*)\):", line)
+            if m:
+                parts = m.group(1).split()
+                all_aliases_from_log.update(get_log_search_alias(p) for p in parts)
+
     for jf in json_files:
-        full_path = os.path.join(folder_path, jf)
-        aliases = parse_explain_json(full_path)
+        sql_name = os.path.splitext(jf)[0]
 
-        if not aliases:
-            print(f"[INFO] File: {jf} - No base relation aliases found, skipping subsequent path collection.")
-            continue
+        # Determine target directory
+        if keep_in_place:
+            target_dir = folder_path
+        else:
+            target_dir = make_unique_dir(os.path.join(folder_path, sql_name))
 
-        print(f"File: {jf}")
-        print("  Base Relation Aliases:", ", ".join(sorted(aliases)))
+        # path to the JSON and log files
+        json_src  = os.path.join(folder_path, jf)
+        json_dst  = os.path.join(target_dir, jf)
+        log_dst   = os.path.join(target_dir, f"{sql_name}_{log_filename}")
 
-        needed_log_aliases = set(get_log_search_alias(alias) for alias in aliases)
+        if not keep_in_place:
+            shutil.copyfile(json_src, json_dst)
+            shutil.copyfile(log_path, log_dst)
+        else:
+            # If keep_in_place, we need to use the original log file and the JSON file in the same folder
+            json_dst = json_src
+            log_dst  = os.path.join(folder_path, log_filename)
 
-        alias_path_map = extract_path_info_from_log(log_path, needed_log_aliases)
+        # Analyze the JSON file
+        aliases = parse_explain_json(json_dst) 
+        needed = {get_log_search_alias(a) for a in aliases}
+        
+        # debug message
+        # print("[DEBUG] needed =", needed)
+        
+        alias_path_map = extract_path_info_from_log(log_dst, needed)
 
-        output_filename = jf.rsplit(".", 1)[0] + "_pathcost.txt"
-        out_path = os.path.join(folder_path, output_filename)
-
-        with open(out_path, "w", encoding="utf-8") as outf:
-            for alias in sorted(aliases):
-                parent_alias = get_log_search_alias(alias)
-                path_lines = alias_path_map.get(parent_alias, [])
-                if not path_lines:
+        # Output path cost information to a text file
+        txt_path = os.path.join(target_dir, f"{sql_name}_pathcost.txt")
+        with open(txt_path, "w", encoding="utf-8") as outf:
+            # Only write the aliases that are in the log file
+            for parent in sorted(alias_path_map):
+                lines = alias_path_map[parent]
+                if not lines:
                     continue
-                outf.write(f"===== RELOPTINFO for alias: {alias} =====\n")
-                for pl in path_lines:
-                    outf.write(pl + "\n")
+                outf.write(f"===== RELOPTINFO for alias: {parent} =====\n")
+                outf.writelines(l + "\n" for l in lines)
                 outf.write("\n")
 
-        print(f"  => Path information has been written to: {output_filename}\n")
+        # Convert the text file to Excel
+        xlsx_path = os.path.join(
+            target_dir, f"{sql_name}_path_cost_info.xlsx")
+        convert_pathcost_file_to_excel(txt_path, xlsx_path)
 
-    return out_path
+        print(f"[INFO] Excel file has been saved to: {xlsx_path}")
 
+##
+#   Extract partition ID from the path cost information
+##
+def _partition_id(path):#
+    PART_RE = re.compile(r"_(?:part|p)?(\d+)(?:_|$)", re.IGNORECASE)
+    m = PART_RE.search(path.get("Index Name") or "")
+    return m.group(1) if m else None
 
+##
+#   Insert blank lines between partitions in the path cost information
+##
 def insert_blank_between_partitions(paths):
-    unique_paths = []
-    seen = set()
-
-    for path in paths:
-        key = (
-            path["Scan Type"],
-            path["Index Name"],
-            path["Rows"],
-            path["Startup Cost"],
-            path["Total Cost"]
-        )
+    # Remove duplicates
+    uniq, seen = [], set()
+    for p in paths:
+        key = (p["Scan Type"], p["Index Name"],
+               p["Rows"], p["Startup Cost"], p["Total Cost"])
         if key not in seen:
             seen.add(key)
-            unique_paths.append(path)
+            uniq.append(p)
 
-    result = []
-    first = True
+    result     = []
+    last_part  = None
 
-    for path in unique_paths:
-        if path["Scan Type"] == "SeqScan":
-            if not first:
-                result.append({
-                    "Scan Type": None,
-                    "Index Name": None,
-                    "Rows": None,
-                    "Startup Cost": None,
-                    "Total Cost": None
-                })
-            first = False
+    for i, p in enumerate(uniq):
+        this_part = _partition_id(p)
 
-        result.append(path)
+        # If this_part is None and the previous one is not, set it to the last one
+        if this_part is None and p["Scan Type"] == "SeqScan":
+            if i + 1 < len(uniq):
+                this_part = _partition_id(uniq[i + 1]) or last_part
+            else:
+                this_part = last_part
+
+        # Determine if we need to insert a blank line
+        if last_part is not None and this_part != last_part:
+            result.append({
+                "Scan Type": None, "Index Name": None,
+                "Rows": None, "Startup Cost": None, "Total Cost": None
+            })
+
+        result.append(p)
+        last_part = this_part
 
     return result
 
-
+##
+#   Convert the path cost information text file to an Excel file.
+##
 def convert_pathcost_file_to_excel(input_file, output_excel):
     with open(input_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
@@ -206,6 +267,13 @@ def convert_pathcost_file_to_excel(input_file, output_excel):
         r"^(IdxScan|SeqScan)\((.+?)\).*rows=(\d+).*cost=\s*([\d\.]+)\s*\.\.\s*([\d\.]+)"
     )
     index_name_pattern = re.compile(r"index name:\s*(\S+)")
+    required_outer_pattern = re.compile(r"required_outer\s*\(([^)]+)\)")
+    
+    sub_reloptinfo_pattern     = re.compile(r"^RELOPTINFO \((.+?)\):")
+    inside_base_relopt         = True   # If inside base reloptinfo, we can collect path info
+    
+    cheapest_path_heading = re.compile(r"^cheapest .*path[s]?:", re.IGNORECASE)
+
 
     data = {}
     current_alias = None
@@ -224,32 +292,56 @@ def convert_pathcost_file_to_excel(input_file, output_excel):
                 current_alias = "TABLE_ITEMS"
             else:
                 current_alias = alias
+                
+            inside_base_relopt = True
 
             if current_alias not in data:
                 data[current_alias] = {
                     "path_list": [],
-                    "partial_path_list": []
+                    "partial_path_list": [],
+                    "parameterized_path_list": []
                 }
+            current_list_type = None
+            last_path = None
+            continue
+        
+        sub_rel_match = sub_reloptinfo_pattern.match(line)
+        if sub_rel_match:
+            inner_alias = sub_rel_match.group(1)
+
+            # When there is a space inside the parentheses, it indicates a join RelOptInfo
+            inside_base_relopt = (inner_alias == current_alias and " " not in inner_alias)
+
+            # No matter if it's a join or not, reset the state for the next RELOPTINFO ()
             current_list_type = None
             last_path = None
             continue
 
         if path_list_pattern.match(line):
+            if not inside_base_relopt:  # If not inside base reloptinfo, skip this line
+                continue
             current_list_type = "path_list"
             last_path = None
             continue
 
         if partial_path_list_pattern.match(line):
+            if not inside_base_relopt:
+                continue
             current_list_type = "partial_path_list"
             last_path = None
             continue
-
-        if "required_outer" in line:
+        
+        # If we encounter a line that indicates the cheapest path, we stop collecting paths
+        if cheapest_path_heading.match(line):
+            current_list_type = None
+            last_path = None
             continue
 
         path_match = path_pattern.match(line)
-        if path_match and current_alias:
+        if path_match and current_alias and inside_base_relopt:
             scan_type, table, rows, startup_cost, total_cost = path_match.groups()
+            ro_match = required_outer_pattern.search(line)
+            required_outer = ro_match.group(1) if ro_match else None
             try:
                 rows = int(rows)
                 startup_cost = float(startup_cost)
@@ -267,9 +359,18 @@ def convert_pathcost_file_to_excel(input_file, output_excel):
                 "Rows": rows,
                 "Startup Cost": startup_cost,
                 "Total Cost": total_cost,
+                "Required Outer": required_outer,
             }
+            
+            if required_outer:
+                list_key = "parameterized_path_list"
+            else:
+                list_key = current_list_type
+            
+            if list_key is None:
+                continue            # No path list type found, skip this line
 
-            data[current_alias][current_list_type].append(path)
+            data[current_alias][list_key].append(path)
             last_path = path
             continue
 
@@ -285,30 +386,36 @@ def convert_pathcost_file_to_excel(input_file, output_excel):
 
             df_path_list = pd.DataFrame(insert_blank_between_partitions(lists["path_list"]))
             df_partial_path_list = pd.DataFrame(insert_blank_between_partitions(lists["partial_path_list"]))
+            df_parameterized_path_list = pd.DataFrame(insert_blank_between_partitions(lists["parameterized_path_list"]))
 
             if not df_path_list.empty:
                 sheet_data.append(["Path List:"])
                 sheet_data.append(["Scan Type", "Index Name", "Rows", "Startup Cost", "Total Cost"])
-                sheet_data.extend(df_path_list.values.tolist())
+                sheet_data.extend(df_path_list.drop(columns=["Required Outer"]).values.tolist())
 
             sheet_data.append([])
 
             if not df_partial_path_list.empty:
                 sheet_data.append(["Partial Path List:"])
                 sheet_data.append(["Scan Type", "Index Name", "Rows", "Startup Cost", "Total Cost"])
-                sheet_data.extend(df_partial_path_list.values.tolist())
+                sheet_data.extend(df_partial_path_list.drop(columns=["Required Outer"]).values.tolist())
+                
+            sheet_data.append([])
+                
+            if not df_parameterized_path_list.empty:
+                sheet_data.append(["Parameterized Path List:"])
+                sheet_data.append(["Scan Type", "Index Name", "Rows", "Startup Cost", "Total Cost", "Required Outer"])
+                sheet_data.extend(df_parameterized_path_list.values.tolist())
 
             pd.DataFrame(sheet_data).to_excel(writer, index=False, header=False, sheet_name=alias)
 
     wb = load_workbook(output_excel)
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
-        column_widths = [12, 40, 10, 15, 15]
+        column_widths = [12, 40, 10, 15, 15, 25]
 
         for i, width in enumerate(column_widths, start=1):
             col_letter = ws.cell(row=1, column=i).column_letter
             ws.column_dimensions[col_letter].width = width
 
     wb.save(output_excel)
-
-    print(f"Excel file has been saved to {output_excel}")
